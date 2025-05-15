@@ -46,6 +46,18 @@ int main() {
             std::cout << "    Amount: " << tx.getAmount() << std::endl;
             std::cout << "    Transaction ID: " << tx.getTransactionId() << std::endl;
         }
+        
+        // 在添加区块后打印 Merkle 树结构
+        std::cout << "\n  Merkle Tree for Block " << block->getIndex() << ":" << std::endl;
+        MerkleTree tree(block->getTransactions());
+        tree.printTree();
+        
+        // 验证每个交易
+        std::cout << "\n  verifying transactions..." << std::endl;
+        for (const auto& tx : block->getTransactions()) {
+            std::cout << "    Transaction " << tx.getTransactionId() << " is " 
+                      << (tree.verifyTransaction(tx) ? "valid" : "invalid") << std::endl;
+        }
         std::cout << "  ------------" << "Index: " << block->getIndex() << "------------" << std::endl;
     }
     getchar();
