@@ -60,3 +60,72 @@ cmake --build . --config Release
 - 更复杂的数据结构
 
 您想要我详细解释代码的某个特定部分，或者需要添加其他功能吗？
+
+
+
+## 交易结构和Merkle树
+
+### Transaction
+
+交易列表，一般是一个Transaction列表。
+
+交易结构 (Transaction)
+
+- 包含发送者、接收者、金额、时间戳和交易ID
+
+- 交易ID通过哈希交易数据生成
+
+- 提供了完整的 getter 方法
+
+### Merkle 树
+
+Merkle 树 (MerkleTree)
+
+- 实现了基本的 Merkle 树结构
+
+- 支持交易验证
+
+- 自动处理奇数个叶子节点的情况
+
+- 提供了根哈希获取方法
+
+
+
+笔者注：Merkle树的实现这里其实仅仅临时对Transaction列表做了聚合。在其内部完成：
+
+- 将所有Transaction提取hash值组成列表
+- 然后按照双数（奇数最后一个重复）每2个聚合哈希成一个
+- 递归汇总成一个hash值后，使用该hash值生成根MerkleNode（所以leaves_永远为空）
+- Block在初始化的时候读取这个根MerkleNode的hash值
+
+### 区块更新 (Block)
+
+- 将原来的简单数据字段改为交易列表
+
+- 添加了 Merkle 根哈希
+
+- 更新了哈希计算方法以包含 Merkle 根
+
+笔者注：Block在初始化时，入参简单data更新为交易列表（Transaction），构造时将该列表生成一个MerkleTree，但其实该树仅仅用于提取merkleRoot_，即对所有交易的hash值汇总后再hash。
+
+另外区块保存了交易列表
+
+### 主程序更新 (main.cpp)
+
+- 创建示例交易
+
+- 展示交易和 Merkle 树的使用
+
+- 显示更详细的区块信息
+
+
+
+主要修改包括：
+
+1. 更新了 Blockchain 类以支持交易列表
+1. 更新了 Block 类以包含交易和 Merkle 树
+1. 添加了所有必要的源文件到 CMakeLists.txt
+
+
+
+这是第一个不完善的交易结构和Merkle树演示。需笔者手动修正。

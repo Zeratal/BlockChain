@@ -12,18 +12,19 @@ Blockchain::Blockchain(int difficulty)
 }
 
 std::shared_ptr<Block> Blockchain::createGenesisBlock() {
-    return std::make_shared<Block>(0, "Genesis Block", "0");
+    std::vector<Transaction> genesisTransactions;
+    return std::make_shared<Block>(0, genesisTransactions, "0");
 }
 
-void Blockchain::addBlock(const std::string& data) {
-    std::cout << "Blockchain::Add Block: " << data << std::endl;
+void Blockchain::addBlock(const std::vector<Transaction>& transactions) {
+    std::cout << "Blockchain::Add Block: " << transactions.size() << " transactions" << std::endl;
 
     // 获取区块链中最后一个区块
     auto previousBlock = chain_.back();
     // 创建一个新的区块
     auto newBlock = std::make_shared<Block>(
         previousBlock->getIndex() + 1,
-        data,
+        transactions,
         previousBlock->getHash()
     );
     newBlock->mineBlock(difficulty_);

@@ -4,11 +4,12 @@
 #include <iomanip>
 #include <chrono>
 #include <ctime>
+#include <openssl/sha.h>
 
 // Block 类实现
-Block::Block(int index, const std::string& data, const std::string& previousHash)
+Block::Block(int index, const std::vector<Transaction>& transactions, const std::string& previousHash)
     : index_(index)
-    , data_(data)
+    , transactions_(transactions)
     , previousHash_(previousHash)
     , nonce_(0)
 {
@@ -16,6 +17,11 @@ Block::Block(int index, const std::string& data, const std::string& previousHash
     auto now_c = std::chrono::system_clock::to_time_t(now);
     timestamp_ = std::ctime(&now_c);
     timestamp_.pop_back(); // 移除换行符
+
+    // Create Merkle tree and get root hash
+    MerkleTree merkleTree(transactions_);
+    merkleRoot_ = merkleTree.getRootHash();
+    
     hash_ = calculateHash();
 }
 
@@ -41,16 +47,16 @@ std::string Block::sha256(const std::string& str) {
 
 std::string Block::calculateHash() const {
     std::stringstream ss;
-    ss << index_ << timestamp_ << data_ << previousHash_ << nonce_;
+    ss << index_ << timestamp_ << merkleRoot_ << previousHash_ << nonce_;
     //将区块的各个部分（index、timestamp、data、previousHash、nonce）转换为字符串，并拼接到 ss 里；
     return sha256(ss.str());
 }
 
 
 // 不断尝试不同的 nonce，直到当前计算出的哈希 hash 的前 difficulty 位是 "0000"；
-// 这就模拟了“挖矿”的过程（寻找满足条件的哈希）。
+// 这就模拟了"挖矿"的过程（寻找满足条件的哈希）。
 void Block::mineBlock(int difficulty) {
-    std::cout << index_ << " Block mined: " << data_ << std::endl;
+    std::cout << index_ << " Block mined: " << merkleRoot_ << std::endl;
 
     std::string target(difficulty, '0');
     while (hash_.substr(0, difficulty) != target) {
