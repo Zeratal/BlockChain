@@ -13,7 +13,8 @@ public:
     const std::string& getTimestamp() const { return timestamp_; }
     const std::string& getTransactionId() const { return transactionId_; }
     const std::string& getSignature() const { return signature_; }
-    
+    bool isValid() const;
+    bool hasEnoughBalance(double balance) const;
    
     // 验证交易签名
     bool verifySignature() const;

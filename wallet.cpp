@@ -287,4 +287,13 @@ BIGNUM* Wallet::hexToKey(const std::string& hex) {
         return nullptr;
     }
     return key;
-} 
+}
+
+
+bool Wallet::deductBalance(double amount) {
+    if (balance_ >= amount) {
+        balance_ -= amount;
+        return true;
+    }
+    return false;
+}

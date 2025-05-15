@@ -45,4 +45,14 @@ bool Transaction::verifySignature() const {
     
     // 使用 transactionId_ 作为验证数据
     return Wallet::verify(transactionId_, signature_, from_);
+}
+
+// 检查交易是否有效（包括余额检查）
+bool Transaction::isValid() const {
+    return !from_.empty() && !to_.empty() && amount_ > 0 && !signature_.empty();
+}
+
+// 检查发送方余额是否足够
+bool Transaction::hasEnoughBalance(double balance) const {
+    return balance >= amount_;
 } 

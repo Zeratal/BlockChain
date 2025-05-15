@@ -25,6 +25,17 @@ int main() {
         std::cout << "Bob's public key: " << bobPublicKey << std::endl;
         std::cout << "Charlie's public key: " << charliePublicKey << std::endl;
         
+        // 设置初始余额
+        aliceWallet.addBalance(100.0);  // Alice 有 100 个币
+        bobWallet.addBalance(50.0);     // Bob 有 50 个币
+        charlieWallet.addBalance(25.0); // Charlie 有 25 个币
+        
+        // 打印初始余额
+        std::cout << "\nInitial balances:" << std::endl;
+        std::cout << "Alice: " << aliceWallet.getBalance() << std::endl;
+        std::cout << "Bob: " << bobWallet.getBalance() << std::endl;
+        std::cout << "Charlie: " << charlieWallet.getBalance() << std::endl;
+        
         // 创建交易
         std::cout << "\nCreating transactions..." << std::endl;
         std::vector<Transaction> transactions1 = {
@@ -101,6 +112,12 @@ int main() {
                           << (tree.verifyTransaction(tx) ? "valid" : "invalid") << std::endl;
             }
         }
+        
+        // 打印最终余额
+        std::cout << "\nFinal balances:" << std::endl;
+        std::cout << "Alice: " << aliceWallet.getBalance() << std::endl;
+        std::cout << "Bob: " << bobWallet.getBalance() << std::endl;
+        std::cout << "Charlie: " << charlieWallet.getBalance() << std::endl;
         
     } catch (const std::exception& e) {
         std::cerr << "Error: " << e.what() << std::endl;
