@@ -26,7 +26,9 @@ MerkleNode::MerkleNode(const std::string& hash, const std::string& name)
     , left_(nullptr)
     , right_(nullptr)
     , level_(0)
-{}
+{
+    std::cout << "  MerkleNode::MerkleNode " << name_ << " " << hash_ << std::endl;
+}
 
 MerkleNode::MerkleNode(std::shared_ptr<MerkleNode> left, std::shared_ptr<MerkleNode> right)
     : left_(left)
@@ -40,7 +42,7 @@ MerkleNode::MerkleNode(std::shared_ptr<MerkleNode> left, std::shared_ptr<MerkleN
 }
 
 MerkleTree::MerkleTree(const std::vector<Transaction>& transactions) {
-    std::cout << "MerkleTree::MerkleTree " << std::endl;
+    std::cout << "  MerkleTree::MerkleTree " << std::endl;
     if (transactions.empty()) {
         root_ = nullptr;
         return;
@@ -91,7 +93,7 @@ void MerkleTree::buildProofPaths(std::shared_ptr<MerkleNode> node, const std::ve
 
     if (node->isLeaf()) {
         proofPaths_[node->getHash()] = path;
-        std::cout << indent << "buildProofPaths leaf " << node->getName() << " " << node->getHash() << std::endl;
+        std::cout << indent << "  buildProofPaths leaf " << node->getName() << " " << node->getHash() << std::endl;
         for (const auto& [siblingHash, isLeft] : path) {
             std::cout << indent << "  siblingHash " << siblingHash << " " << isLeft << std::endl;
         }
@@ -102,7 +104,7 @@ void MerkleTree::buildProofPaths(std::shared_ptr<MerkleNode> node, const std::ve
     std::vector<std::pair<std::string, bool>> leftPath = path;
     if (node->getRight()) {
         leftPath.push_back({node->getRight()->getHash(), true});
-        std::cout << indent << "buildProofPaths leftPath " << node->getRight()->getName() << " " << "true" << std::endl;
+        std::cout << indent << "  buildProofPaths leftPath " << node->getRight()->getName() << " " << "true" << std::endl;
     }
     buildProofPaths(node->getLeft(), leftPath, level + 1);
     
@@ -110,7 +112,7 @@ void MerkleTree::buildProofPaths(std::shared_ptr<MerkleNode> node, const std::ve
     std::vector<std::pair<std::string, bool>> rightPath = path;
     if (node->getLeft()) {
         rightPath.push_back({node->getLeft()->getHash(), false});
-        std::cout << indent << "buildProofPaths rightPath " << node->getLeft()->getName() << " " << "false" << std::endl;
+        std::cout << indent << "  buildProofPaths rightPath " << node->getLeft()->getName() << " " << "false" << std::endl;
     }
     buildProofPaths(node->getRight(), rightPath, level + 1);
 }
@@ -132,7 +134,7 @@ bool MerkleTree::verifyPath(const std::string& txHash, const std::vector<std::pa
 }
 
 void MerkleTree::printTree() const {
-    std::cout << "MerkleTree::printTree " << std::endl;
+    std::cout << "  MerkleTree::printTree " << std::endl;
     if (!root_) {
         std::cout << "  Empty tree" << std::endl;
         return;
@@ -144,7 +146,7 @@ void MerkleTree::printNode(std::shared_ptr<MerkleNode> node, int level) const {
     if (!node) return;
     
     std::string indent(level * 2, ' ');
-    std::cout << indent << node->getName() << "  Level " << node->getLevel() << ": " << node->getHash() << std::endl;
+    std::cout << "  " << indent << node->getName() << "  Level " << node->getLevel() << ": " << node->getHash() << std::endl;
     
     if (node->getLeft()) {
         printNode(node->getLeft(), level + 1);
@@ -155,12 +157,8 @@ void MerkleTree::printNode(std::shared_ptr<MerkleNode> node, int level) const {
 }
 
 std::shared_ptr<MerkleNode> MerkleTree::buildTree(const std::vector<std::shared_ptr<MerkleNode>>& nodes, int level) {
-    std::cout << "MerkleTree::buildTree " << std::endl;
+    std::cout << "  MerkleTree::buildTree " << std::endl;
     if (nodes.empty()) return nullptr;
-    if (nodes.size() == 1) {
-        // nodes[0]->setLevel(level);
-        return nodes[0];
-    }
 
     std::vector<std::shared_ptr<MerkleNode>> newNodes;
     for (size_t i = 0; i < nodes.size(); i += 2) {
@@ -169,6 +167,10 @@ std::shared_ptr<MerkleNode> MerkleTree::buildTree(const std::vector<std::shared_
         auto parent = std::make_shared<MerkleNode>(left, right);
         parent->setLevel(level + 1);
         newNodes.push_back(parent);
+    }
+
+    if (newNodes.size() == 1) {
+        return newNodes[0];
     }
 
     return buildTree(newNodes, level + 1);

@@ -153,7 +153,7 @@ std::string Wallet::sign(const std::string& data, const std::string& privateKey)
 bool Wallet::verify(const std::string& data, 
                    const std::string& signature, 
                    const std::string& publicKey) {
-    std::cout << "Verifying signature with public key: " << publicKey << std::endl;
+    // std::cout << "Verifying signature with public key: " << publicKey << std::endl;
     // 解析公钥
     size_t pos = publicKey.find(':');
     if (pos == std::string::npos) {

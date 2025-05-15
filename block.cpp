@@ -13,6 +13,7 @@ Block::Block(int index, const std::vector<Transaction>& transactions, const std:
     , previousHash_(previousHash)
     , nonce_(0)
 {
+    std::cout << "Block::Block create" << std::endl;
     auto now = std::chrono::system_clock::now();
     auto now_c = std::chrono::system_clock::to_time_t(now);
     timestamp_ = std::ctime(&now_c);

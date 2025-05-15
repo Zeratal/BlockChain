@@ -46,6 +46,7 @@ int main() {
         }
         
         // 创建第二个交易集合
+        std::cout << "\nCreating second transaction set..." << std::endl;
         std::vector<Transaction> transactions2 = {
             Transaction(alicePublicKey, charliePublicKey, 7.5),
             Transaction(charliePublicKey, bobPublicKey, 3.0)
@@ -59,7 +60,7 @@ int main() {
         std::cout << "\nCreating blockchain..." << std::endl;
         Blockchain blockchain(4);
         
-        std::cout << "Starting mining..." << std::endl;
+        std::cout << "\nStarting mining..." << std::endl;
         
         // 添加区块
         blockchain.addBlock(transactions1);

@@ -17,7 +17,7 @@ std::shared_ptr<Block> Blockchain::createGenesisBlock() {
 }
 
 void Blockchain::addBlock(const std::vector<Transaction>& transactions) {
-    std::cout << "Blockchain::Add Block: " << transactions.size() << " transactions" << std::endl;
+    std::cout << "\nBlockchain::Add Block: " << transactions.size() << " transactions" << std::endl;
 
     // 获取区块链中最后一个区块
     auto previousBlock = chain_.back();
@@ -29,6 +29,8 @@ void Blockchain::addBlock(const std::vector<Transaction>& transactions) {
     );
     newBlock->mineBlock(difficulty_);
     chain_.push_back(newBlock);
+    std::cout << "" << std::endl;
+
 }
 
 bool Blockchain::isChainValid() const {
