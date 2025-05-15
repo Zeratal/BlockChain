@@ -130,7 +130,7 @@ Merkle 树 (MerkleTree)
 
 这是第一个不完善的交易结构和Merkle树演示。需笔者手动修正。
 
-## MerkleTree完善(v0.0.2)
+## MerkleTree完善(v0.0.3)
 
 主要改进包括：
 
