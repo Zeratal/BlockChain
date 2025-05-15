@@ -1,4 +1,4 @@
-﻿# BlockChain
+# BlockChain
 
 ## 区块和链（v0.0.1）
 

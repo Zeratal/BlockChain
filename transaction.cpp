@@ -52,7 +52,3 @@ bool Transaction::isValid() const {
     return !from_.empty() && !to_.empty() && amount_ > 0 && !signature_.empty();
 }
 
-// 检查发送方余额是否足够
-bool Transaction::hasEnoughBalance(double balance) const {
-    return balance >= amount_;
-} 

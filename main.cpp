@@ -53,6 +53,13 @@ int main() {
             }
         }
         
+                
+        // 检查余额
+        for (const auto& tx : transactions1) {
+            if (!tx.hasEnoughBalance(balances[tx.getFrom()])) {
+                throw std::runtime_error("Insufficient balance for transaction");
+            }
+        }
         // 签名交易
         transactions1[0].setSignature(aliceWallet.sign(transactions1[0].getTransactionId()));
         transactions1[1].setSignature(bobWallet.sign(transactions1[1].getTransactionId()));
@@ -64,7 +71,9 @@ int main() {
             std::cout << "Transaction " << tx.getTransactionId() << " signature valid: " 
                       << (tx.verifySignature() ? "Yes" : "No") << std::endl;
         }
+
         
+
         // 更新余额
         for (const auto& tx : transactions1) {
             balances[tx.getFrom()] -= tx.getAmount();
@@ -89,6 +98,12 @@ int main() {
         transactions2[0].setSignature(aliceWallet.sign(transactions2[0].getTransactionId()));
         transactions2[1].setSignature(charlieWallet.sign(transactions2[1].getTransactionId()));
         
+                // 检查余额
+        for (const auto& tx : transactions2) {
+            if (!tx.hasEnoughBalance(balances[tx.getFrom()])) {
+                throw std::runtime_error("Insufficient balance for transaction");
+            }
+        }
         // 更新余额
         for (const auto& tx : transactions2) {
             balances[tx.getFrom()] -= tx.getAmount();

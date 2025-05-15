@@ -16,8 +16,6 @@ public:
     const std::vector<std::shared_ptr<Block>>& getChain() const { return chain_; }
     
     bool validateTransaction(const Transaction& tx) const;
-    void updateBalances(const std::vector<Transaction>& transactions);
-    std::shared_ptr<Wallet> getWalletByPublicKey(const std::string& publicKey) const;
     
 private:
     std::vector<std::shared_ptr<Block>> chain_;

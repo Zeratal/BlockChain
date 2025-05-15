@@ -58,9 +58,3 @@ bool Blockchain::isChainValid() const {
 bool Blockchain::validateTransaction(const Transaction& tx) const {
     return tx.isValid() && tx.verifySignature();
 }
-
-// 根据公钥获取钱包
-std::shared_ptr<Wallet> Blockchain::getWalletByPublicKey(const std::string& publicKey) const {
-    auto it = wallets_.find(publicKey);
-    return it != wallets_.end() ? it->second : nullptr;
-}
