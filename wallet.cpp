@@ -100,6 +100,56 @@ std::string Wallet::sign(const std::string& data) const {
     return result;
 }
 
+std::string Wallet::sign(const std::string& data, const std::string& privateKey) {
+    // 创建新的 EC_KEY
+    EC_KEY* key = EC_KEY_new_by_curve_name(NID_secp256k1);
+    if (!key) {
+        throw std::runtime_error("Failed to create EC_KEY");
+    }
+
+    // 从十六进制字符串设置私钥
+    BIGNUM* priv = hexToKey(privateKey);
+    if (!priv) {
+        EC_KEY_free(key);
+        throw std::runtime_error("Failed to convert private key");
+    }
+
+    if (!EC_KEY_set_private_key(key, priv)) {
+        BN_free(priv);
+        EC_KEY_free(key);
+        throw std::runtime_error("Failed to set private key");
+    }
+
+    // 计算数据的 SHA256 哈希
+    unsigned char hash[SHA256_DIGEST_LENGTH];
+    SHA256_CTX sha256;
+    SHA256_Init(&sha256);
+    SHA256_Update(&sha256, data.c_str(), data.size());
+    SHA256_Final(hash, &sha256);
+
+    // 使用私钥签名
+    ECDSA_SIG* sig = ECDSA_do_sign(hash, SHA256_DIGEST_LENGTH, key);
+    if (!sig) {
+        BN_free(priv);
+        EC_KEY_free(key);
+        throw std::runtime_error("Failed to sign data");
+    }
+
+    // 获取签名值
+    const BIGNUM* r = nullptr;
+    const BIGNUM* s = nullptr;
+    ECDSA_SIG_get0(sig, &r, &s);
+
+    // 将签名转换为十六进制字符串
+    std::string result = keyToHex(r) + ":" + keyToHex(s);
+
+    // 清理
+    ECDSA_SIG_free(sig);
+    BN_free(priv);
+    EC_KEY_free(key);
+    return result;
+}
+
 bool Wallet::verify(const std::string& data, 
                    const std::string& signature, 
                    const std::string& publicKey) {
@@ -207,7 +257,7 @@ bool Wallet::verify(const std::string& data,
     return result == 1;
 }
 
-std::string Wallet::keyToHex(const BIGNUM* key) const {
+std::string Wallet::keyToHex(const BIGNUM* key) {
     char* hex = BN_bn2hex(key);
     if (!hex) {
         throw std::runtime_error("Failed to convert key to hex");

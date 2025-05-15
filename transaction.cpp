@@ -5,12 +5,14 @@
 #include <openssl/sha.h>
 #include <chrono>
 #include <ctime>
+#include <iostream>
 
 Transaction::Transaction(const std::string& from, const std::string& to, double amount)
     : from_(from)
     , to_(to)
     , amount_(amount)
 {
+    std::cout << "Transaction created with from: " << from_ << ", to: " << to_ << ", amount: " << amount_ << std::endl;
     // Set timestamp
     auto now = std::chrono::system_clock::now();
     auto now_c = std::chrono::system_clock::to_time_t(now);
@@ -36,16 +38,13 @@ Transaction::Transaction(const std::string& from, const std::string& to, double 
 }
 
 void Transaction::sign(const std::string& privateKey) {
-    // 创建临时钱包对象
-    Wallet wallet;
-    
     // 计算需要签名的数据
     std::stringstream ss;
     ss << from_ << to_ << amount_ << timestamp_;
     std::string data = ss.str();
     
-    // 使用私钥签名
-    signature_ = wallet.sign(data);
+    // 使用传入的私钥签名
+    signature_ = Wallet::sign(data, privateKey);
 }
 
 bool Transaction::verifySignature() const {

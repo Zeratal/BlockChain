@@ -30,11 +30,13 @@ public:
                       const std::string& signature, 
                       const std::string& publicKey);
 
+    static std::string sign(const std::string& data, const std::string& privateKey);
+
 private:
     EC_KEY* keyPair_;
     
     // 将密钥转换为字符串
-    std::string keyToHex(const BIGNUM* key) const;
+    static std::string keyToHex(const BIGNUM* key);
     
     // 从字符串转换为密钥
     static BIGNUM* hexToKey(const std::string& hex);
