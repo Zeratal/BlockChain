@@ -20,7 +20,6 @@ public:
 private:
     std::vector<std::shared_ptr<Block>> chain_;
     int difficulty_;
-    std::map<std::string, std::shared_ptr<Wallet>> wallets_;
     
     std::shared_ptr<Block> createGenesisBlock();
 }; 
