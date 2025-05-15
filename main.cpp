@@ -2,6 +2,7 @@
 #include "wallet.h"
 #include <iostream>
 #include <chrono>
+#include <map>
 
 int main() {
     try {
@@ -24,17 +25,18 @@ int main() {
         std::cout << "Alice's public key: " << alicePublicKey << std::endl;
         std::cout << "Bob's public key: " << bobPublicKey << std::endl;
         std::cout << "Charlie's public key: " << charliePublicKey << std::endl;
-        
+		
         // 设置初始余额
-        aliceWallet.addBalance(100.0);  // Alice 有 100 个币
-        bobWallet.addBalance(50.0);     // Bob 有 50 个币
-        charlieWallet.addBalance(25.0); // Charlie 有 25 个币
+        std::map<std::string, double> balances;
+        balances[alicePublicKey] = 100.0;
+        balances[bobPublicKey] = 50.0;
+        balances[charliePublicKey] = 25.0;
         
         // 打印初始余额
         std::cout << "\nInitial balances:" << std::endl;
-        std::cout << "Alice: " << aliceWallet.getBalance() << std::endl;
-        std::cout << "Bob: " << bobWallet.getBalance() << std::endl;
-        std::cout << "Charlie: " << charlieWallet.getBalance() << std::endl;
+        std::cout << "Alice: " << balances[alicePublicKey] << std::endl;
+        std::cout << "Bob: " << balances[bobPublicKey] << std::endl;
+        std::cout << "Charlie: " << balances[charliePublicKey] << std::endl;
         
         // 创建交易
         std::cout << "\nCreating transactions..." << std::endl;
@@ -43,6 +45,13 @@ int main() {
             Transaction(bobPublicKey, charliePublicKey, 5.0),
             Transaction(charliePublicKey, alicePublicKey, 2.5)
         };
+        
+        // 检查余额
+        for (const auto& tx : transactions1) {
+            if (balances[tx.getFrom()] < tx.getAmount()) {
+                throw std::runtime_error("Insufficient balance for transaction");
+            }
+        }
         
         // 签名交易
         transactions1[0].setSignature(aliceWallet.sign(transactions1[0].getTransactionId()));
@@ -56,6 +65,12 @@ int main() {
                       << (tx.verifySignature() ? "Yes" : "No") << std::endl;
         }
         
+        // 更新余额
+        for (const auto& tx : transactions1) {
+            balances[tx.getFrom()] -= tx.getAmount();
+            balances[tx.getTo()] += tx.getAmount();
+        }
+        
         // 创建第二个交易集合
         std::cout << "\nCreating second transaction set..." << std::endl;
         std::vector<Transaction> transactions2 = {
@@ -63,9 +78,22 @@ int main() {
             Transaction(charliePublicKey, bobPublicKey, 3.0)
         };
         
+        // 检查余额
+        for (const auto& tx : transactions2) {
+            if (balances[tx.getFrom()] < tx.getAmount()) {
+                throw std::runtime_error("Insufficient balance for transaction");
+            }
+        }
+        
         // 签名第二个交易集合
         transactions2[0].setSignature(aliceWallet.sign(transactions2[0].getTransactionId()));
         transactions2[1].setSignature(charlieWallet.sign(transactions2[1].getTransactionId()));
+        
+        // 更新余额
+        for (const auto& tx : transactions2) {
+            balances[tx.getFrom()] -= tx.getAmount();
+            balances[tx.getTo()] += tx.getAmount();
+        }
         
         // 创建一个难度为4的区块链
         std::cout << "\nCreating blockchain..." << std::endl;
@@ -79,6 +107,12 @@ int main() {
         
         // 验证区块链
         std::cout << "\nIs blockchain valid: " << (blockchain.isChainValid() ? "Yes" : "No") << std::endl;
+        
+        // 打印最终余额
+        std::cout << "\nFinal balances:" << std::endl;
+        std::cout << "Alice: " << balances[alicePublicKey] << std::endl;
+        std::cout << "Bob: " << balances[bobPublicKey] << std::endl;
+        std::cout << "Charlie: " << balances[charliePublicKey] << std::endl;
         
         // 打印区块链信息
         std::cout << "\nBlockchain Information:" << std::endl;
@@ -112,12 +146,6 @@ int main() {
                           << (tree.verifyTransaction(tx) ? "valid" : "invalid") << std::endl;
             }
         }
-        
-        // 打印最终余额
-        std::cout << "\nFinal balances:" << std::endl;
-        std::cout << "Alice: " << aliceWallet.getBalance() << std::endl;
-        std::cout << "Bob: " << bobWallet.getBalance() << std::endl;
-        std::cout << "Charlie: " << charlieWallet.getBalance() << std::endl;
         
     } catch (const std::exception& e) {
         std::cerr << "Error: " << e.what() << std::endl;

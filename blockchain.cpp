@@ -33,13 +33,9 @@ void Blockchain::addBlock(const std::vector<Transaction>& transactions) {
     // 挖矿
     newBlock->mineBlock(difficulty_);
     
-    // 更新余额
-    updateBalances(transactions);
-    
     // 添加区块
     chain_.push_back(newBlock);
     std::cout << "" << std::endl;
-
 }
 
 bool Blockchain::isChainValid() const {
@@ -58,31 +54,9 @@ bool Blockchain::isChainValid() const {
     return true;
 }
 
-// 更新钱包余额
-void Blockchain::updateBalances(const std::vector<Transaction>& transactions) {
-    for (const auto& tx : transactions) {
-        // 扣除发送方余额
-        auto fromWallet = getWalletByPublicKey(tx.getFrom());
-        if (fromWallet) {
-            fromWallet->deductBalance(tx.getAmount());
-        }
-        
-        // 增加接收方余额
-        auto toWallet = getWalletByPublicKey(tx.getTo());
-        if (toWallet) {
-            toWallet->addBalance(tx.getAmount());
-        }
-    }
-}
-
-// 验证交易（包括余额检查）
+// 验证交易（只验证签名和基本有效性）
 bool Blockchain::validateTransaction(const Transaction& tx) const {
-    auto fromWallet = getWalletByPublicKey(tx.getFrom());
-    if (!fromWallet) return false;
-    
-    return tx.isValid() && 
-           tx.verifySignature() && 
-           tx.hasEnoughBalance(fromWallet->getBalance());
+    return tx.isValid() && tx.verifySignature();
 }
 
 // 根据公钥获取钱包
