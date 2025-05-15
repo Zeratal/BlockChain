@@ -14,9 +14,7 @@ public:
     const std::string& getTransactionId() const { return transactionId_; }
     const std::string& getSignature() const { return signature_; }
     
-    // 签名交易
-    void sign(const std::string& privateKey);
-    
+   
     // 验证交易签名
     bool verifySignature() const;
     

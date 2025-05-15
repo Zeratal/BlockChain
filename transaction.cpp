@@ -37,26 +37,12 @@ Transaction::Transaction(const std::string& from, const std::string& to, double 
     transactionId_ = hash_ss.str();
 }
 
-void Transaction::sign(const std::string& privateKey) {
-    // 计算需要签名的数据
-    std::stringstream ss;
-    ss << from_ << to_ << amount_ << timestamp_;
-    std::string data = ss.str();
-    
-    // 使用传入的私钥签名
-    signature_ = Wallet::sign(data, privateKey);
-}
 
 bool Transaction::verifySignature() const {
     if (signature_.empty()) {
         return false;
     }
     
-    // 计算需要验证的数据
-    std::stringstream ss;
-    ss << from_ << to_ << amount_ << timestamp_;
-    std::string data = ss.str();
-    
-    // 验证签名
-    return Wallet::verify(data, signature_, from_);
+    // 使用 transactionId_ 作为验证数据
+    return Wallet::verify(transactionId_, signature_, from_);
 } 

@@ -34,9 +34,9 @@ int main() {
         };
         
         // 签名交易
-        transactions1[0].sign(aliceWallet.getPrivateKey());
-        transactions1[1].sign(bobWallet.getPrivateKey());
-        transactions1[2].sign(charlieWallet.getPrivateKey());
+        transactions1[0].setSignature(aliceWallet.sign(transactions1[0].getTransactionId()));
+        transactions1[1].setSignature(bobWallet.sign(transactions1[1].getTransactionId()));
+        transactions1[2].setSignature(charlieWallet.sign(transactions1[2].getTransactionId()));
         
         // 验证交易签名
         std::cout << "\nVerifying transaction signatures..." << std::endl;
@@ -52,8 +52,8 @@ int main() {
         };
         
         // 签名第二个交易集合
-        transactions2[0].sign(aliceWallet.getPrivateKey());
-        transactions2[1].sign(charlieWallet.getPrivateKey());
+        transactions2[0].setSignature(aliceWallet.sign(transactions2[0].getTransactionId()));
+        transactions2[1].setSignature(charlieWallet.sign(transactions2[1].getTransactionId()));
         
         // 创建一个难度为4的区块链
         std::cout << "\nCreating blockchain..." << std::endl;

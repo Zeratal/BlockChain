@@ -153,9 +153,11 @@ std::string Wallet::sign(const std::string& data, const std::string& privateKey)
 bool Wallet::verify(const std::string& data, 
                    const std::string& signature, 
                    const std::string& publicKey) {
+    std::cout << "Verifying signature with public key: " << publicKey << std::endl;
     // 解析公钥
     size_t pos = publicKey.find(':');
     if (pos == std::string::npos) {
+        std::cout << "Invalid public key format" << std::endl;
         return false;
     }
 
@@ -165,6 +167,7 @@ bool Wallet::verify(const std::string& data,
     // 创建 EC_KEY
     EC_KEY* key = EC_KEY_new_by_curve_name(NID_secp256k1);
     if (!key) {
+        std::cout << "Failed to create EC_KEY" << std::endl;
         return false;
     }
 
@@ -172,12 +175,14 @@ bool Wallet::verify(const std::string& data,
     BIGNUM* x = hexToKey(xStr);
     BIGNUM* y = hexToKey(yStr);
     if (!x || !y) {
+        std::cout << "Failed to convert public key coordinates" << std::endl;
         EC_KEY_free(key);
         return false;
     }
 
     EC_POINT* pub = EC_POINT_new(EC_KEY_get0_group(key));
     if (!pub) {
+        std::cout << "Failed to set public key coordinates" << std::endl;
         BN_free(x);
         BN_free(y);
         EC_KEY_free(key);
@@ -185,6 +190,7 @@ bool Wallet::verify(const std::string& data,
     }
 
     if (!EC_POINT_set_affine_coordinates_GFp(EC_KEY_get0_group(key), pub, x, y, nullptr)) {
+        std::cout << "Failed to set affine coordinates" << std::endl;
         EC_POINT_free(pub);
         BN_free(x);
         BN_free(y);
@@ -193,6 +199,7 @@ bool Wallet::verify(const std::string& data,
     }
 
     if (!EC_KEY_set_public_key(key, pub)) {
+        std::cout << "Failed to set public key" << std::endl;
         EC_POINT_free(pub);
         BN_free(x);
         BN_free(y);
@@ -203,6 +210,7 @@ bool Wallet::verify(const std::string& data,
     // 解析签名
     pos = signature.find(':');
     if (pos == std::string::npos) {
+        std::cout << "Failed to find signature" << std::endl;
         EC_POINT_free(pub);
         BN_free(x);
         BN_free(y);
@@ -216,6 +224,7 @@ bool Wallet::verify(const std::string& data,
     BIGNUM* r = hexToKey(rStr);
     BIGNUM* s = hexToKey(sStr);
     if (!r || !s) {
+        std::cout << "Failed to parse signature" << std::endl;
         EC_POINT_free(pub);
         BN_free(x);
         BN_free(y);
@@ -226,6 +235,7 @@ bool Wallet::verify(const std::string& data,
     // 创建签名对象
     ECDSA_SIG* sig = ECDSA_SIG_new();
     if (!sig) {
+        std::cout << "Failed to create signature" << std::endl;
         BN_free(r);
         BN_free(s);
         EC_POINT_free(pub);
