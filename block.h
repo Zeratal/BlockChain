@@ -22,8 +22,12 @@ public:
     int getNonce() const { return nonce_; }
     std::string getMerkleRoot() const { return merkleRoot_; }
     const std::vector<Transaction>& getTransactions() const { return transactions_; }
-
+    const std::map<std::string, double>& getBalanceChanges() const { return balanceChanges_; }
+    void setBalanceChanges(const std::map<std::string, double>& balanceChanges) { balanceChanges_ = balanceChanges; }
 private:
+
+    std::map<std::string, double> balanceChanges_;  // 记录每个地址的余额变更
+
     int index_;
     std::string timestamp_;
     std::vector<Transaction> transactions_;

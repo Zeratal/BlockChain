@@ -9,13 +9,14 @@
 
 class Blockchain {
 public:
-    Blockchain(int difficulty);
+    Blockchain(int difficulty, const std::map<std::string, double>& initialBalances);
     
     void addBlock(const std::vector<Transaction>& transactions);
     bool isChainValid() const;
     const std::vector<std::shared_ptr<Block>>& getChain() const { return chain_; }
     
     bool validateTransaction(const Transaction& tx) const;
+    double getBalance(const std::string& address) const;
     
 private:
     std::vector<std::shared_ptr<Block>> chain_;

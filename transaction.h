@@ -1,7 +1,7 @@
 #pragma once
 #include <string>
 #include <ctime>
-
+#include <iostream>
 class Transaction {
 public:
     Transaction(const std::string& from, const std::string& to, double amount);
@@ -15,6 +15,7 @@ public:
     const std::string& getSignature() const { return signature_; }
     bool isValid() const;
     bool hasEnoughBalance(double balance) const {
+        std::cout << "Checking balance: " << balance << " >= " << amount_ << std::endl;
         return balance >= amount_;
     }
    
