@@ -54,7 +54,6 @@ MerkleTree::MerkleTree(const std::vector<Transaction>& transactions) {
         auto leafNode = std::make_shared<MerkleNode>(txHash, std::string(1, ch));
         ch++;
         leafNode->setLevel(0);
-        leafNodes_[txHash] = leafNode;
         nodes.push_back(leafNode);
     }
 

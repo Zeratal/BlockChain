@@ -36,7 +36,6 @@ public:
 
 private:
     std::shared_ptr<MerkleNode> root_;
-    std::map<std::string, std::shared_ptr<MerkleNode>> leafNodes_;
     std::map<std::string, std::vector<std::pair<std::string, bool>>> proofPaths_;
     
     void buildProofPaths(std::shared_ptr<MerkleNode> node, 

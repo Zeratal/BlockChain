@@ -29,6 +29,7 @@ add_executable(blockchain
     blockchain.cpp
     transaction.cpp
     merkletree.cpp
+    wallet.cpp
 )
 
 # Include directories
