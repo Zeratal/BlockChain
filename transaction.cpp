@@ -35,16 +35,18 @@ Transaction::Transaction(const std::string& from, const std::string& to, double 
         hash_ss << std::hex << std::setw(2) << std::setfill('0') << static_cast<int>(hash[i]);
     }
     transactionId_ = hash_ss.str();
+    std::cout << "Transaction ID: " << transactionId_ << std::endl;
 }
 
 
 bool Transaction::verifySignature() const {
-    if (signature_.empty()) {
-        return false;
+    // 系统交易的特殊处理
+    if (from_ == "SYSTEM" && signature_ == "SYSTEM_SIGNATURE") {
+        return true;
     }
     
-    // 使用 transactionId_ 作为验证数据
-    return Wallet::verify(transactionId_, signature_, from_);
+    // 普通交易的签名验证
+    return Wallet::verify(getTransactionId(), signature_, from_);
 }
 
 // 检查交易是否有效（包括余额检查）

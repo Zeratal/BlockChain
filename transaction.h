@@ -2,6 +2,8 @@
 #include <string>
 #include <ctime>
 #include <iostream>
+#include "wallet.h"
+
 class Transaction {
 public:
     Transaction(const std::string& from, const std::string& to, double amount);
@@ -25,6 +27,13 @@ public:
     // 设置签名（用于从网络接收交易时）
     void setSignature(const std::string& signature) { signature_ = signature; }
 
+    // 创建系统交易（用于初始余额分配）
+    static Transaction createSystemTransaction(const std::string& to, double amount) {
+        Transaction tx("SYSTEM", to, amount);
+        tx.signature_ = "SYSTEM_SIGNATURE";  // 系统交易的特殊签名
+        return tx;
+    }
+
 private:
     std::string from_;          // 发送方公钥
     std::string to_;            // 接收方公钥
@@ -32,4 +41,6 @@ private:
     std::string timestamp_;     // 交易时间戳
     std::string transactionId_; // 交易ID（哈希值）
     std::string signature_;     // 交易签名
+
+    std::string calculateTransactionId() const;
 }; 

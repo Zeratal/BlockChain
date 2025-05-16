@@ -1,4 +1,5 @@
 #include "wallet.h"
+#include "transaction.h"
 #include <openssl/sha.h>
 #include <openssl/ecdsa.h>
 #include <openssl/obj_mac.h>
@@ -289,11 +290,19 @@ BIGNUM* Wallet::hexToKey(const std::string& hex) {
     return key;
 }
 
-
-bool Wallet::deductBalance(double amount) {
-    if (balance_ >= amount) {
-        balance_ -= amount;
-        return true;
+void Wallet::processTransaction(const Transaction& tx) {
+    if (tx.getFrom() == getPublicKey()) {
+        balance_ -= tx.getAmount();
     }
-    return false;
+    if (tx.getTo() == getPublicKey()) {
+        balance_ += tx.getAmount();
+    }
 }
+
+// bool Wallet::deductBalance(double amount) {
+//     if (balance_ >= amount) {
+//         balance_ -= amount;
+//         return true;
+//     }
+//     return false;
+// }

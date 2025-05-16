@@ -8,36 +8,44 @@ int main() {
     try {
         // 创建钱包
         std::cout << "Creating wallets..." << std::endl;
-        Wallet aliceWallet;
-        Wallet bobWallet;
-        Wallet charlieWallet;
+        auto aliceWallet = std::make_shared<Wallet>();
+        auto bobWallet = std::make_shared<Wallet>();
+        auto charlieWallet = std::make_shared<Wallet>();
         
         // 生成密钥对
-        aliceWallet.generateKeyPair();
-        bobWallet.generateKeyPair();
-        charlieWallet.generateKeyPair();
+        aliceWallet->generateKeyPair();
+        bobWallet->generateKeyPair();
+        charlieWallet->generateKeyPair();
         
         // 获取公钥
-        std::string alicePublicKey = aliceWallet.getPublicKey();
-        std::string bobPublicKey = bobWallet.getPublicKey();
-        std::string charliePublicKey = charlieWallet.getPublicKey();
+        std::string alicePublicKey = aliceWallet->getPublicKey();
+        std::string bobPublicKey = bobWallet->getPublicKey();
+        std::string charliePublicKey = charlieWallet->getPublicKey();
         
         std::cout << "Alice's public key: " << alicePublicKey << std::endl;
         std::cout << "Bob's public key: " << bobPublicKey << std::endl;
         std::cout << "Charlie's public key: " << charliePublicKey << std::endl;
 		
-        // 创建区块链（传入初始余额信息）
-        Blockchain blockchain(4, {
-            {alicePublicKey, 100.0},
-            {bobPublicKey, 50.0},
-            {charliePublicKey, 25.0}
+        // 创建区块链
+        Blockchain blockchain(4);
+        
+        // 注册钱包到区块链
+        blockchain.registerWallet(aliceWallet);
+        blockchain.registerWallet(bobWallet);
+        blockchain.registerWallet(charlieWallet);
+        
+        // 设置初始余额（通过创世区块交易）
+        blockchain.addBlock({
+            Transaction::createSystemTransaction(alicePublicKey, 100.0),
+            Transaction::createSystemTransaction(bobPublicKey, 50.0),
+            Transaction::createSystemTransaction(charliePublicKey, 25.0)
         });
         
         // 打印初始余额
         std::cout << "\nInitial balances:" << std::endl;
-        std::cout << "Alice: " << blockchain.getBalance(alicePublicKey) << std::endl;
-        std::cout << "Bob: " << blockchain.getBalance(bobPublicKey) << std::endl;
-        std::cout << "Charlie: " << blockchain.getBalance(charliePublicKey) << std::endl;
+        std::cout << "Alice: " << aliceWallet->getBalance() << std::endl;
+        std::cout << "Bob: " << bobWallet->getBalance() << std::endl;
+        std::cout << "Charlie: " << charlieWallet->getBalance() << std::endl;
         
         // 创建交易
         std::cout << "\nCreating transactions..." << std::endl;
@@ -48,18 +56,18 @@ int main() {
         };
         
         // 签名交易
-        transactions1[0].setSignature(aliceWallet.sign(transactions1[0].getTransactionId()));
-        transactions1[1].setSignature(bobWallet.sign(transactions1[1].getTransactionId()));
-        transactions1[2].setSignature(charlieWallet.sign(transactions1[2].getTransactionId()));
+        transactions1[0].setSignature(aliceWallet->sign(transactions1[0].getTransactionId()));
+        transactions1[1].setSignature(bobWallet->sign(transactions1[1].getTransactionId()));
+        transactions1[2].setSignature(charlieWallet->sign(transactions1[2].getTransactionId()));
         
         // 添加区块（包含余额验证和更新）
         blockchain.addBlock(transactions1);
         
         // 打印余额
         std::cout << "\nBalances after first block:" << std::endl;
-        std::cout << "Alice: " << blockchain.getBalance(alicePublicKey) << std::endl;
-        std::cout << "Bob: " << blockchain.getBalance(bobPublicKey) << std::endl;
-        std::cout << "Charlie: " << blockchain.getBalance(charliePublicKey) << std::endl;
+        std::cout << "Alice: " << aliceWallet->getBalance() << std::endl;
+        std::cout << "Bob: " << bobWallet->getBalance() << std::endl;
+        std::cout << "Charlie: " << charlieWallet->getBalance() << std::endl;
         
         // 创建第二个交易集合
         std::cout << "\nCreating second transaction set..." << std::endl;
@@ -69,26 +77,26 @@ int main() {
         };
         
         // 签名第二个交易集合
-        transactions2[0].setSignature(aliceWallet.sign(transactions2[0].getTransactionId()));
-        transactions2[1].setSignature(charlieWallet.sign(transactions2[1].getTransactionId()));
+        transactions2[0].setSignature(aliceWallet->sign(transactions2[0].getTransactionId()));
+        transactions2[1].setSignature(charlieWallet->sign(transactions2[1].getTransactionId()));
         
         // 添加区块（包含余额验证和更新）
         blockchain.addBlock(transactions2);
         
         // 打印余额
         std::cout << "\nBalances after second block:" << std::endl;
-        std::cout << "Alice: " << blockchain.getBalance(alicePublicKey) << std::endl;
-        std::cout << "Bob: " << blockchain.getBalance(bobPublicKey) << std::endl;
-        std::cout << "Charlie: " << blockchain.getBalance(charliePublicKey) << std::endl;
+        std::cout << "Alice: " << aliceWallet->getBalance() << std::endl;
+        std::cout << "Bob: " << bobWallet->getBalance() << std::endl;
+        std::cout << "Charlie: " << charlieWallet->getBalance() << std::endl;
         
         // 验证区块链
         std::cout << "\nIs blockchain valid: " << (blockchain.isChainValid() ? "Yes" : "No") << std::endl;
         
         // 打印最终余额
         std::cout << "\nFinal balances:" << std::endl;
-        std::cout << "Alice: " << blockchain.getBalance(alicePublicKey) << std::endl;
-        std::cout << "Bob: " << blockchain.getBalance(bobPublicKey) << std::endl;
-        std::cout << "Charlie: " << blockchain.getBalance(charliePublicKey) << std::endl;
+        std::cout << "Alice: " << aliceWallet->getBalance() << std::endl;
+        std::cout << "Bob: " << bobWallet->getBalance() << std::endl;
+        std::cout << "Charlie: " << charlieWallet->getBalance() << std::endl;
         
         // 打印区块链信息
         std::cout << "\nBlockchain Information:" << std::endl;

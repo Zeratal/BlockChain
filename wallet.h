@@ -8,6 +8,9 @@
 #include <openssl/bn.h>
 #include <openssl/evp.h>
 
+// 前向声明
+class Transaction;
+
 class Wallet {
 public:
     Wallet();
@@ -36,10 +39,12 @@ public:
     
     // 从字符串转换为密钥 
     static BIGNUM* hexToKey(const std::string& hex);
-    // 余额管理 
+    // 余额管理
     double getBalance() const { return balance_; }
-    void   addBalance(double amount) { balance_ += amount; }
-    bool   deductBalance(double amount);
+    void updateBalance(double amount) { balance_ += amount; }
+    
+    // 监听交易更新余额 
+    void processTransaction(const Transaction& tx);
     
 private:
     EC_KEY* keyPair_;  

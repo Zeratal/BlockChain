@@ -9,7 +9,7 @@
 
 class Blockchain {
 public:
-    Blockchain(int difficulty, const std::map<std::string, double>& initialBalances);
+    Blockchain(int difficulty);
     
     void addBlock(const std::vector<Transaction>& transactions);
     bool isChainValid() const;
@@ -18,9 +18,15 @@ public:
     bool validateTransaction(const Transaction& tx) const;
     double getBalance(const std::string& address) const;
     
+    // 添加钱包管理功能
+    void registerWallet(std::shared_ptr<Wallet> wallet);
+    std::shared_ptr<Wallet> getWalletByPublicKey(const std::string& publicKey) const;
+    
 private:
     std::vector<std::shared_ptr<Block>> chain_;
     int difficulty_;
+    std::map<std::string, double> balanceCache_;  // 余额缓存
+    std::map<std::string, std::shared_ptr<Wallet>> wallets_;  // 钱包映射
     
     std::shared_ptr<Block> createGenesisBlock();
 }; 

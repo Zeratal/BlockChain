@@ -429,3 +429,301 @@ for (auto it = path.rbegin(); it != path.rend(); ++it) {
 
 
 
+## 余额管理(0.0.5)
+
+余额管理涉及到如何把保存钱包的余额。
+
+这里一波三折：
+
+- 最初AI举例将余额存在钱包，然后试图在交易操作钱包，然而实施失败
+- 后续AI将余额管理作为带三方管理，笔者认为失去意义
+- 最后AI将每个钱包的余额记入Block中，笔者排除一堆幻觉后调试通过。但遗留几个问题。
+
+==遗留问题：==
+
+1. 钱包中保存余额的部分失效了，钱包自己是否应该知道余额
+2. 每次统计钱包余额，要遍历chain上所有块。一个成熟的区块链会这么干么？
+
+您提出了两个非常好的问题！
+
+1. 关于钱包是否应该知道余额：
+   - 在真实的区块链系统中，钱包确实应该知道自己的余额
+   - 钱包可以维护一个本地缓存，通过监听区块链上的交易来更新余额
+   - 这样可以快速查询余额，而不需要每次都遍历整个链
+
+2. 关于余额计算方式：
+   - 您说得对，遍历整个链来计算余额是非常低效的
+   - 成熟的区块链系统通常使用 UTXO (Unspent Transaction Output) 模型或账户模型
+   - 我们当前实现的是账户模型，但实现方式不够优化
+
+让我们改进这个设计：
+
+1. 首先修改 `Wallet` 类，添加余额管理：
+```cpp
+class Wallet {
+public:
+    // ... 其他代码 ...
+    
+    // 余额管理
+    double getBalance() const { return balance_; }
+    void updateBalance(double amount) { balance_ += amount; }
+    
+    // 监听交易更新余额
+    void processTransaction(const Transaction& tx) {
+        if (tx.getFrom() == getPublicKey()) {
+            balance_ -= tx.getAmount();
+        }
+        if (tx.getTo() == getPublicKey()) {
+            balance_ += tx.getAmount();
+        }
+    }
+
+private:
+    // ... 其他成员 ...
+    double balance_ = 0.0;
+};
+```
+
+2. 在 `Blockchain` 类中添加余额缓存：
+```cpp
+class Blockchain {
+public:
+    // ... 其他代码 ...
+    
+    // 获取地址余额（使用缓存）
+    double getBalance(const std::string& address) const {
+        auto it = balanceCache_.find(address);
+        if (it != balanceCache_.end()) {
+            return it->second;
+        }
+        return 0.0;
+    }
+    
+    void addBlock(const std::vector<Transaction>& transactions) {
+        // 验证所有交易
+        for (const auto& tx : transactions) {
+            if (!validateTransaction(tx)) {
+                throw std::runtime_error("Invalid transaction: insufficient balance or invalid signature");
+            }
+        }
+        
+        // 创建新区块
+        std::string previousHash = chain_.empty() ? "0" : chain_.back()->getHash();
+        auto newBlock = std::make_shared<Block>(chain_.size(), transactions, previousHash);
+        
+        // 更新余额缓存
+        for (const auto& tx : transactions) {
+            balanceCache_[tx.getFrom()] -= tx.getAmount();
+            balanceCache_[tx.getTo()] += tx.getAmount();
+        }
+        
+        // 挖矿
+        newBlock->mineBlock(difficulty_);
+        
+        // 添加区块
+        chain_.push_back(newBlock);
+        
+        // 通知钱包更新余额
+        for (const auto& tx : transactions) {
+            auto fromWallet = getWalletByPublicKey(tx.getFrom());
+            if (fromWallet) {
+                fromWallet->processTransaction(tx);
+            }
+            auto toWallet = getWalletByPublicKey(tx.getTo());
+            if (toWallet) {
+                toWallet->processTransaction(tx);
+            }
+        }
+    }
+
+private:
+    // ... 其他成员 ...
+    std::map<std::string, double> balanceCache_;  // 余额缓存
+};
+```
+
+3. 修改 `main.cpp` 中的代码：
+```cpp
+int main() {
+    try {
+        // ... 创建钱包和生成密钥对的代码 ...
+        
+        // 创建区块链
+        Blockchain blockchain(4);
+        
+        // 设置初始余额
+        blockchain.addBlock({
+            Transaction("SYSTEM", alicePublicKey, 100.0),
+            Transaction("SYSTEM", bobPublicKey, 50.0),
+            Transaction("SYSTEM", charliePublicKey, 25.0)
+        });
+        
+        // 打印初始余额
+        std::cout << "\nInitial balances:" << std::endl;
+        std::cout << "Alice: " << aliceWallet.getBalance() << std::endl;
+        std::cout << "Bob: " << bobWallet.getBalance() << std::endl;
+        std::cout << "Charlie: " << charlieWallet.getBalance() << std::endl;
+        
+        // ... 其他代码 ...
+    }
+    // ... 其他代码 ...
+}
+```
+
+这样改进后：
+1. 钱包维护自己的余额，可以快速查询
+2. 区块链使用余额缓存，避免遍历整个链
+3. 当新区块被添加时，钱包会收到通知并更新余额
+4. 余额的验证仍然由区块链负责，保证安全性
+5. 钱包的余额作为本地缓存，可以快速响应查询
+
+这种设计更接近真实的区块链系统：
+- 钱包负责管理自己的余额
+- 区块链负责验证和记录交易
+- 使用缓存提高性能
+- 保持数据一致性
+
+您觉得这个改进方案如何？
+
+
+
+==笔者：需要补充钱包注册==
+
+我已经完成了以下修改：
+
+1. 在 `Blockchain` 类中添加了钱包管理功能：
+   - 添加了 `wallets_` 映射来存储钱包
+   - 添加了 `registerWallet` 和 `getWalletByPublicKey` 函数
+
+2. 在 `blockchain.cpp` 中实现了这些新函数：
+   - `registerWallet` 用于注册钱包到区块链
+   - `getWalletByPublicKey` 用于通过公钥查找钱包
+
+3. 修改了 `main.cpp`：
+   - 将钱包对象改为使用智能指针
+   - 添加了初始余额映射
+   - 注册钱包到区块链
+   - 更新了所有钱包相关的调用
+
+这些修改应该解决了 `getWalletByPublicKey` 未定义的问题。现在区块链系统可以正确地管理钱包和余额了。
+
+您还需要我帮您做其他修改吗？
+
+==为什么创建区块链时添加了初始余额映射，注册钱包后，又设置初始余额==
+
+您说得对，这里确实存在重复设置初始余额的问题。让我解释一下当前的问题并提供修复方案：
+
+当前代码中存在两个地方设置初始余额：
+
+1. 在创建区块链时通过 `initialBalances` 参数设置：
+```cpp
+std::map<std::string, double> initialBalances = {
+    {alicePublicKey, 100.0},
+    {bobPublicKey, 50.0},
+    {charliePublicKey, 25.0}
+};
+Blockchain blockchain(4, initialBalances);
+```
+
+2. 在创建创世区块时又通过交易设置：
+```cpp
+blockchain.addBlock({
+    Transaction("SYSTEM", alicePublicKey, 100.0),
+    Transaction("SYSTEM", bobPublicKey, 50.0),
+    Transaction("SYSTEM", charliePublicKey, 25.0)
+});
+```
+
+这确实是不必要的重复。我们应该只保留一种方式来设置初始余额。
+
+现在我们还需要修改 `Blockchain` 类的构造函数，移除 `initialBalances` 参数，
+
+最后，我们需要修改 `blockchain.cpp` 中的构造函数实现：
+
+我已经完成了以下修改：
+
+1. 移除了 `Blockchain` 构造函数中的 `initialBalances` 参数
+2. 移除了在创建区块链时通过映射设置初始余额的方式
+3. 保留了通过创世区块交易设置初始余额的方式
+
+这样修改的原因是：
+1. 通过交易设置初始余额更符合区块链的设计理念，因为所有状态变化都应该通过交易来记录
+2. 避免了重复设置余额的问题
+3. 保持了代码的一致性和清晰性
+
+现在初始余额只通过创世区块的交易来设置，这样更合理且避免了重复。您觉得这样的修改合适吗？
+
+==设置初始余额的时候没有对交易签名==
+
+您说得对！这是一个很好的发现。在设置初始余额时，我们使用了 `"SYSTEM"` 作为发送方，但没有对交易进行签名。这违反了区块链的基本规则，即所有交易都需要有效的签名。
+
+让我们修改代码，为系统交易添加一个特殊的签名机制：
+
+我已经完成了以下修改：
+
+1. 在 `Transaction` 类中添加了 `createSystemTransaction` 静态方法，用于创建系统交易
+2. 修改了 `verifySignature` 方法，使其能够验证系统交易的特殊签名
+3. 更新了 `main.cpp` 中的初始余额设置，使用 `createSystemTransaction` 方法
+
+这些修改的好处是：
+1. 系统交易有了明确的标识和验证机制
+2. 保持了交易验证的一致性
+3. 使代码更加清晰和可维护
+
+系统交易使用特殊的签名 `"SYSTEM_SIGNATURE"`，这是一个简化的实现。在实际的区块链系统中，系统交易通常会有更复杂的验证机制，比如：
+1. 使用特殊的系统密钥对
+2. 使用多重签名
+3. 使用共识机制验证
+
+您觉得这样的修改合适吗？
+
+我已经修复了循环依赖的问题：
+
+1. 在 wallet.h 中：
+
+- 移除了 #include "transaction.h"
+
+- 添加了 Transaction 类的前向声明
+
+- 将 processTransaction 方法的实现移到 cpp 文件中
+
+1. 在 wallet.cpp 中：
+
+- 添加了 #include "transaction.h"
+
+- 实现了 processTransaction 方法
+
+这样修改的好处是：
+
+1. 解决了循环依赖问题
+
+1. 遵循了 C++ 的最佳实践，将实现细节放在 cpp 文件中
+
+1. 保持了代码的功能不变
+
+现在代码应该可以正常编译了。您还需要我做其他修改吗？
+
+
+
+==validateTransaction校验余额时，系统钱包不应该校验==
+
+您说得对！系统交易（`"SYSTEM"` 作为发送方）不应该进行余额校验，因为系统交易是用来创建初始余额的。让我修改 `Blockchain` 类中的 `validateTransaction` 方法：
+
+
+
+我已经修改了 `validateTransaction` 方法，添加了对系统交易的特殊处理：
+
+1. 首先验证交易签名
+2. 如果是系统交易（`from_ == "SYSTEM"`），直接返回 `true`，跳过余额检查
+3. 对于普通交易，继续执行余额检查
+
+这样修改的好处是：
+1. 系统交易可以不受余额限制，用于创建初始余额
+2. 普通交易仍然需要验证余额，确保交易有效
+3. 保持了代码的清晰性和可维护性
+
+这个修改更符合区块链系统的设计，因为：
+1. 系统交易是特殊的，用于初始化系统状态
+2. 普通交易必须遵守余额规则
+3. 系统交易仍然需要验证签名，确保其合法性
+

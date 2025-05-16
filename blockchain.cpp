@@ -5,13 +5,12 @@
 #include <map>
 
 // Blockchain 类实现
-Blockchain::Blockchain(int difficulty, const std::map<std::string, double>& initialBalances)
+Blockchain::Blockchain(int difficulty)
     : difficulty_(difficulty)
 {
 	std::cout << "Blockchain::Blockchain createGenesisBlock" << std::endl;
 
     auto genesisBlock = createGenesisBlock();
-    genesisBlock->setBalanceChanges(initialBalances);
     chain_.push_back(genesisBlock);
 }
 
@@ -33,20 +32,32 @@ void Blockchain::addBlock(const std::vector<Transaction>& transactions) {
     std::string previousHash = chain_.empty() ? "0" : chain_.back()->getHash();
     auto newBlock = std::make_shared<Block>(chain_.size(), transactions, previousHash);
     
-    // 计算并记录余额变更
-    std::map<std::string, double> balanceChanges;
+    // 更新余额缓存
     for (const auto& tx : transactions) {
-        balanceChanges[tx.getFrom()] -= tx.getAmount();
-        balanceChanges[tx.getTo()] += tx.getAmount();
+        balanceCache_[tx.getFrom()] -= tx.getAmount();
+        balanceCache_[tx.getTo()] += tx.getAmount();
     }
-    newBlock->setBalanceChanges(balanceChanges);
-    
+
     // 挖矿
     newBlock->mineBlock(difficulty_);
     
     // 添加区块
     chain_.push_back(newBlock);
     std::cout << "" << std::endl;
+
+    // 通知钱包更新余额
+    for (const auto& tx : transactions) {
+        auto fromWallet = getWalletByPublicKey(tx.getFrom());
+        if (fromWallet) {
+            std::cout << "fromWallet: " << fromWallet->getPublicKey() << std::endl;
+            fromWallet->processTransaction(tx);
+        }
+        auto toWallet = getWalletByPublicKey(tx.getTo());
+        if (toWallet) {
+            std::cout << "toWallet: " << toWallet->getPublicKey() << std::endl;
+            toWallet->processTransaction(tx);
+        }
+    }
 }
 
 bool Blockchain::isChainValid() const {
@@ -65,17 +76,13 @@ bool Blockchain::isChainValid() const {
     return true;
 }
 
-// 获取地址余额
+// 获取地址余额（使用缓存）
 double Blockchain::getBalance(const std::string& address) const {
-    double balance = 0.0;
-    // 遍历所有区块，计算余额
-    for (const auto& block : chain_) {
-        auto it = block->getBalanceChanges().find(address);
-        if (it != block->getBalanceChanges().end()) {
-            balance += it->second;
-        }
+    auto it = balanceCache_.find(address);
+    if (it != balanceCache_.end()) {
+        return it->second;
     }
-    return balance;
+    return 0.0;
 }
 
 // 验证交易（包括余额检查）
@@ -86,8 +93,27 @@ bool Blockchain::validateTransaction(const Transaction& tx) const {
         return false;
     }
     
+    // 系统交易跳过余额检查
+    if (tx.getFrom() == "SYSTEM") {
+        return true;
+    }
+    
     // 检查余额
     double balance = getBalance(tx.getFrom());
     std::cout << "Balance: " << balance << std::endl;
     return tx.hasEnoughBalance(balance);
+}
+
+void Blockchain::registerWallet(std::shared_ptr<Wallet> wallet) {
+    if (wallet) {
+        wallets_[wallet->getPublicKey()] = wallet;
+    }
+}
+
+std::shared_ptr<Wallet> Blockchain::getWalletByPublicKey(const std::string& publicKey) const {
+    auto it = wallets_.find(publicKey);
+    if (it != wallets_.end()) {
+        return it->second;
+    }
+    return nullptr;
 }
