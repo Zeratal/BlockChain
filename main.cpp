@@ -11,12 +11,7 @@ int main() {
         auto aliceWallet = std::make_shared<Wallet>();
         auto bobWallet = std::make_shared<Wallet>();
         auto charlieWallet = std::make_shared<Wallet>();
-        
-        // Generate key pairs
-        aliceWallet->generateKeyPair();
-        bobWallet->generateKeyPair();
-        charlieWallet->generateKeyPair();
-        
+                
         // Get public keys
         std::string alicePublicKey = aliceWallet->getPublicKey();
         std::string bobPublicKey = bobWallet->getPublicKey();

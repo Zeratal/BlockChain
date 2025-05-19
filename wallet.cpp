@@ -12,6 +12,7 @@
 Wallet::Wallet() : keyPair_(nullptr) {
     // 初始化 OpenSSL
     OpenSSL_add_all_algorithms();
+    generateKeyPair();
 }
 
 Wallet::~Wallet() {
