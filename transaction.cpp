@@ -50,6 +50,8 @@ bool Transaction::verifySignature() const {
     if (from_ == "SYSTEM") return true;
     
     // 验证签名
+    std::cout << "Transaction::verifySignature: " << transactionId_ << " signature: " << signature_ << std::endl;
+    Wallet::verify(transactionId_, signature_, from_);
     // 这里需要实现具体的签名验证逻辑
     return !signature_.empty();
 }
