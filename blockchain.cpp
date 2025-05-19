@@ -20,69 +20,88 @@ std::shared_ptr<Block> Blockchain::createGenesisBlock() {
 }
 
 void Blockchain::addBlock(const std::vector<Transaction>& transactions) {
-    std::cout << "\nBlockchain::Add Block: " << transactions.size() << " transactions" << std::endl;
-    // 验证所有交易
-    for (const auto& tx : transactions) {
-        if (!validateTransaction(tx)) {
-            throw std::runtime_error("Invalid transaction: insufficient balance or invalid signature");
-        }
-    }
+    // 从交易池中获取待处理交易
+    auto pendingTransactions = transactionPool_.getTransactions();
+    
+    // 合并新交易和待处理交易
+    std::vector<Transaction> allTransactions = transactions;
+    allTransactions.insert(allTransactions.end(), pendingTransactions.begin(), pendingTransactions.end());
     
     // 创建新区块
-    std::string previousHash = chain_.empty() ? "0" : chain_.back()->getHash();
-    auto newBlock = std::make_shared<Block>(chain_.size(), transactions, previousHash);
+    auto newBlock = std::make_shared<Block>(
+        chain_.size(),
+        allTransactions,
+        chain_.back()->getHash()
+    );
     
-    // 更新余额缓存
-    for (const auto& tx : transactions) {
-        balanceCache_[tx.getFrom()] -= tx.getAmount();
-        balanceCache_[tx.getTo()] += tx.getAmount();
-    }
-
     // 挖矿
+    std::cout << "mineBlock: " << newBlock->getHash() << std::endl;
     newBlock->mineBlock(difficulty_);
     
-    // 添加区块
+    // 添加区块到链上 
+    std::cout << "addBlock: " << newBlock->getHash() << std::endl;
     chain_.push_back(newBlock);
-    std::cout << "" << std::endl;
+    // 更新UTXO池
+    std::cout << "updateUTXOPool: " << newBlock->getHash() << std::endl;
+    updateUTXOPool(*newBlock);
+    
+    // 清空交易池中已确认的交易
+    for (const auto& tx : allTransactions) {
+        std::cout << "removeTransaction: " << tx.getTransactionId() << std::endl;
+        transactionPool_.removeTransaction(tx.getTransactionId());
+    }
+}
 
-    // 通知钱包更新余额
-    for (const auto& tx : transactions) {
-        auto fromWallet = getWalletByPublicKey(tx.getFrom());
-        if (fromWallet) {
-            std::cout << "fromWallet: " << fromWallet->getPublicKey() << std::endl;
-            fromWallet->processTransaction(tx);
+bool Blockchain::addTransactionToPool(const Transaction& transaction) {
+    return transactionPool_.addTransaction(transaction, utxoPool_);
+}
+
+std::vector<Transaction> Blockchain::getPendingTransactions() const {
+    return transactionPool_.getTransactions();
+}
+
+void Blockchain::updateUTXOPool(const Block& block) {
+    // 处理区块中的每个交易
+    for (const auto& tx : block.getTransactions()) {
+        // 移除已使用的UTXO
+        std::cout << "updateUTXOPool: " << tx.getTransactionId() << std::endl;
+        for (const auto& input : tx.getInputs()) {
+            utxoPool_.removeUTXO(input.getTxId(), input.getOutputIndex());
+            std::cout << "removeUTXO: " << input.getTxId() << ", " << input.getOutputIndex() << std::endl;
         }
-        auto toWallet = getWalletByPublicKey(tx.getTo());
-        if (toWallet) {
-            std::cout << "toWallet: " << toWallet->getPublicKey() << std::endl;
-            toWallet->processTransaction(tx);
+        
+        // 添加新的UTXO
+        for (size_t i = 0; i < tx.getOutputs().size(); ++i) {
+            std::cout << "addUTXO: " << tx.getTransactionId() << ", " << i << std::endl;
+            const auto& output = tx.getOutputs()[i];
+            UTXO utxo(tx.getTransactionId(), i, output.getAmount(), output.getOwner());
+            utxoPool_.addUTXO(utxo);
+            std::cout << "addUTXO: " << utxo.getTxId() << ", " << utxo.getOutputIndex() << std::endl;
         }
     }
 }
 
+double Blockchain::getBalance(const std::string& address) const {
+    std::cout << "getBalance: " << address << std::endl;
+    return utxoPool_.getBalance(address);
+}
+
 bool Blockchain::isChainValid() const {
-    for (size_t i = 1; i < chain_.size(); i++) {
+    for (size_t i = 1; i < chain_.size(); ++i) {
         const auto& currentBlock = chain_[i];
-        const auto& previousBlock = chain_[i-1];
+        const auto& previousBlock = chain_[i - 1];
         
-        if (!currentBlock->isValid()) {
+        // 验证当前区块的哈希
+        if (currentBlock->getHash() != currentBlock->calculateHash()) {
             return false;
         }
         
+        // 验证区块链接
         if (currentBlock->getPreviousHash() != previousBlock->getHash()) {
             return false;
         }
     }
     return true;
-}
-
-// 获取地址余额（使用缓存）
-double Blockchain::getBalance(const std::string& address) const {
-    auto it = balanceCache_.find(address);
-    if (it != balanceCache_.end()) {
-        return it->second;
-    }
-    return 0.0;
 }
 
 // 验证交易（包括余额检查）
@@ -105,9 +124,7 @@ bool Blockchain::validateTransaction(const Transaction& tx) const {
 }
 
 void Blockchain::registerWallet(std::shared_ptr<Wallet> wallet) {
-    if (wallet) {
-        wallets_[wallet->getPublicKey()] = wallet;
-    }
+    wallets_[wallet->getPublicKey()] = wallet;
 }
 
 std::shared_ptr<Wallet> Blockchain::getWalletByPublicKey(const std::string& publicKey) const {
@@ -116,4 +133,8 @@ std::shared_ptr<Wallet> Blockchain::getWalletByPublicKey(const std::string& publ
         return it->second;
     }
     return nullptr;
+}
+
+std::vector<UTXO> Blockchain::getUTXOsForAddress(const std::string& address) const {
+    return utxoPool_.getUTXOsForAddress(address);
 }

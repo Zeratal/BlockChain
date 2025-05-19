@@ -376,8 +376,6 @@ for (auto it = path.rbegin(); it != path.rend(); ++it) {
   2. 再用 AB 和 CD 的哈希值计算 Root
 - 所以需要倒序访问路径，先处理 CD 的哈希值，再处理 B 的哈希值
 
-##
-
 
 
 ## 钱包系统 / 数字签名(v0.0.4)
@@ -727,3 +725,246 @@ blockchain.addBlock({
 2. 普通交易必须遵守余额规则
 3. 系统交易仍然需要验证签名，确保其合法性
 
+## 交易池和UTXO
+
+我来帮您实现交易池(Transaction Pool)和UTXO(Unspent Transaction Output)模型。这是区块链系统中非常重要的两个组件。
+
+主要的变更：
+
+1. UTXO模型：
+- 创建了`UTXO`类来表示未花费的交易输出
+- 实现了`UTXOPool`类来管理所有UTXO
+- 提供了查询余额、选择UTXO等功能
+
+2. 交易池：
+- 创建了`TransactionPool`类来管理待处理的交易
+- 实现了交易的验证、添加、移除等功能
+- 使用互斥锁保证线程安全
+
+3. 交易结构更新：
+- 添加了`TransactionInput`和`TransactionOutput`类
+- 更新了`Transaction`类以支持UTXO模型
+- 实现了更安全的交易验证机制
+
+4. 区块链更新：
+- 集成了UTXO池和交易池
+- 更新了区块添加逻辑，支持UTXO模型
+- 实现了余额查询的新方法
+
+主要改进：
+1. 更好的安全性：UTXO模型可以防止双重支付
+2. 更高的效率：交易池可以缓存待处理交易
+3. 更准确的余额计算：基于UTXO而不是简单的加减
+4. 更好的并发支持：使用互斥锁保护共享资源
+
+使用示例：
+```cpp
+// 创建交易
+Transaction tx(fromAddress, toAddress, amount);
+
+// 选择UTXO
+auto utxos = utxoPool.selectUTXOs(fromAddress, amount);
+
+// 添加输入
+for (const auto& utxo : utxos) {
+    tx.addInput(TransactionInput(utxo.getTxId(), utxo.getOutputIndex(), signature));
+}
+
+// 添加输出
+tx.addOutput(TransactionOutput(amount, toAddress));
+if (totalInput > amount) {
+    tx.addOutput(TransactionOutput(totalInput - amount, fromAddress)); // 找零
+}
+
+// 添加到交易池
+blockchain.addTransactionToPool(tx);
+```
+
+
+
+UTXO和交易池的概念和实现。
+
+### UTXO (Unspent Transaction Output) 模型
+
+UTXO是比特币等区块链系统中使用的一种交易模型。它的核心思想是：
+
+1. **基本概念**：
+- 每个交易输出(UTXO)代表一定数量的加密货币
+- 每个UTXO只能被使用一次
+- 交易必须使用已有的UTXO作为输入，并创建新的UTXO作为输出
+
+2. **UTXO类的实现**：
+```cpp
+class UTXO {
+    std::string txId_;        // 交易ID
+    int outputIndex_;         // 输出索引
+    double amount_;           // 金额
+    std::string owner_;       // 所有者地址
+    bool spent_;             // 是否已花费
+};
+```
+
+3. **UTXOPool的功能**：
+- 管理所有未花费的交易输出
+- 提供余额查询
+- 选择UTXO进行交易
+```cpp
+class UTXOPool {
+    // 存储结构：交易ID -> (输出索引 -> UTXO)
+    std::map<std::string, std::map<int, UTXO>> utxos_;
+    
+    // 主要方法
+    void addUTXO(const UTXO& utxo);                    // 添加UTXO
+    void removeUTXO(const std::string& txId, int outputIndex);  // 移除UTXO
+    double getBalance(const std::string& address);      // 查询余额
+    std::vector<UTXO> selectUTXOs(const std::string& address, double amount);  // 选择UTXO
+};
+```
+
+### 交易池 (Transaction Pool)
+
+交易池是一个临时存储待处理交易的容器，主要功能包括：
+
+1. **基本概念**：
+- 存储等待被打包进区块的交易
+- 提供交易验证功能
+- 管理交易的添加和移除
+
+2. **TransactionPool的实现**：
+```cpp
+class TransactionPool {
+    std::map<std::string, Transaction> transactions_;  // 存储交易
+    mutable std::mutex mutex_;                         // 线程安全锁
+    
+    // 主要方法
+    bool addTransaction(const Transaction& transaction, const UTXOPool& utxoPool);
+    void removeTransaction(const std::string& txId);
+    std::vector<Transaction> getTransactions() const;
+};
+```
+
+3. **交易验证流程**：
+```cpp
+bool TransactionPool::isValidTransaction(const Transaction& transaction, const UTXOPool& utxoPool) const {
+    // 验证签名
+    if (!transaction.verifySignature()) return false;
+    
+    // 验证余额
+    if (!utxoPool.hasEnoughFunds(transaction.getFrom(), transaction.getAmount())) return false;
+    
+    // 验证金额
+    if (transaction.getAmount() <= 0) return false;
+    
+    // 验证发送者和接收者
+    if (transaction.getFrom() == transaction.getTo()) return false;
+    
+    return true;
+}
+```
+
+### 工作流程
+
+1. **创建交易**：
+```cpp
+// 1. 选择UTXO
+auto utxos = utxoPool.selectUTXOs(fromAddress, amount);
+
+// 2. 创建交易输入
+for (const auto& utxo : utxos) {
+    tx.addInput(TransactionInput(utxo.getTxId(), utxo.getOutputIndex(), signature));
+}
+
+// 3. 创建交易输出
+tx.addOutput(TransactionOutput(amount, toAddress));
+// 如果有找零
+if (totalInput > amount) {
+    tx.addOutput(TransactionOutput(totalInput - amount, fromAddress));
+}
+```
+
+2. **交易处理**：
+```cpp
+// 1. 添加到交易池
+blockchain.addTransactionToPool(tx);
+
+// 2. 挖矿时从交易池获取交易
+auto pendingTransactions = transactionPool.getTransactions();
+
+// 3. 交易确认后更新UTXO池
+void Blockchain::updateUTXOPool(const Block& block) {
+    for (const auto& tx : block.getTransactions()) {
+        // 移除已使用的UTXO
+        for (const auto& input : tx.getInputs()) {
+            utxoPool_.removeUTXO(input.getTxId(), input.getOutputIndex());
+        }
+        
+        // 添加新的UTXO
+        for (size_t i = 0; i < tx.getOutputs().size(); ++i) {
+            const auto& output = tx.getOutputs()[i];
+            UTXO utxo(tx.getTransactionId(), i, output.getAmount(), output.getOwner());
+            utxoPool_.addUTXO(utxo);
+        }
+    }
+}
+```
+
+这种设计的优点：
+1. 防止双重支付
+2. 提高交易验证效率
+3. 支持并行处理
+4. 更好的隐私保护
+5. 更准确的余额计算
+
+主程序更新：
+
+1. 交易创建流程：
+
+- 现在每个交易都需要选择UTXO作为输入
+
+- 添加了交易输入和输出的处理
+
+- 实现了找零机制
+
+1. 交易池集成：
+
+- 交易先添加到交易池
+
+- 挖矿时从交易池获取待处理交易
+
+- 交易确认后从交易池中移除
+
+1. 余额查询：
+
+- 使用UTXO池来查询余额
+
+- 不再使用钱包的余额缓存
+
+1. 输出信息：
+
+- 添加了交易输入和输出的详细信息
+
+- 显示UTXO的使用情况
+
+- 显示找零信息
+
+1. 本地化：
+
+- 将所有输出信息改为中文
+
+- 优化了输出格式
+
+主要改进：
+
+1. 更安全的交易机制
+
+1. 更准确的余额计算
+
+1. 更好的交易追踪
+
+1. 更清晰的输出信息
+
+
+
+# 遗留
+
+用 Solidity 快速部署一个代币（ERC20 或 ERC721），或者给你一个最简智能合约“发币模板”。

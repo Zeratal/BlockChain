@@ -12,12 +12,12 @@ int main() {
         auto bobWallet = std::make_shared<Wallet>();
         auto charlieWallet = std::make_shared<Wallet>();
         
-        // 生成密钥对
+        // Generate key pairs
         aliceWallet->generateKeyPair();
         bobWallet->generateKeyPair();
         charlieWallet->generateKeyPair();
         
-        // 获取公钥
+        // Get public keys
         std::string alicePublicKey = aliceWallet->getPublicKey();
         std::string bobPublicKey = bobWallet->getPublicKey();
         std::string charliePublicKey = charlieWallet->getPublicKey();
@@ -25,81 +25,136 @@ int main() {
         std::cout << "Alice's public key: " << alicePublicKey << std::endl;
         std::cout << "Bob's public key: " << bobPublicKey << std::endl;
         std::cout << "Charlie's public key: " << charliePublicKey << std::endl;
-		
-        // 创建区块链
+        
+        // Create blockchain
         Blockchain blockchain(4);
         
-        // 注册钱包到区块链
+        // Register wallets
         blockchain.registerWallet(aliceWallet);
         blockchain.registerWallet(bobWallet);
         blockchain.registerWallet(charlieWallet);
         
-        // 设置初始余额（通过创世区块交易）
+        // Create genesis block transactions
+        std::cout << "\nCreating genesis block transactions..." << std::endl;
         blockchain.addBlock({
             Transaction::createSystemTransaction(alicePublicKey, 100.0),
             Transaction::createSystemTransaction(bobPublicKey, 50.0),
             Transaction::createSystemTransaction(charliePublicKey, 25.0)
         });
         
-        // 打印初始余额
+        // Print initial balances
         std::cout << "\nInitial balances:" << std::endl;
-        std::cout << "Alice: " << aliceWallet->getBalance() << std::endl;
-        std::cout << "Bob: " << bobWallet->getBalance() << std::endl;
-        std::cout << "Charlie: " << charlieWallet->getBalance() << std::endl;
+        std::cout << "Alice: " << blockchain.getBalance(alicePublicKey) << std::endl;
+        std::cout << "Bob: " << blockchain.getBalance(bobPublicKey) << std::endl;
+        std::cout << "Charlie: " << blockchain.getBalance(charliePublicKey) << std::endl;
         
-        // 创建交易
-        std::cout << "\nCreating transactions..." << std::endl;
-        std::vector<Transaction> transactions1 = {
-            Transaction(alicePublicKey, bobPublicKey, 10.0),
-            Transaction(bobPublicKey, charliePublicKey, 5.0),
-            Transaction(charliePublicKey, alicePublicKey, 2.5)
-        };
+        // Create first group of transactions
+        std::cout << "\nCreating first group of transactions..." << std::endl;
         
-        // 签名交易
-        transactions1[0].setSignature(aliceWallet->sign(transactions1[0].getTransactionId()));
-        transactions1[1].setSignature(bobWallet->sign(transactions1[1].getTransactionId()));
-        transactions1[2].setSignature(charlieWallet->sign(transactions1[2].getTransactionId()));
+        // Alice sends 10 coins to Bob
+        Transaction tx1(alicePublicKey, bobPublicKey, 10.0);
+        std::cout << "tx1: " << tx1.getTransactionId() << std::endl;
+        auto aliceUTXOs = blockchain.getUTXOsForAddress(alicePublicKey);
+        std::cout << "aliceUTXOs: " << aliceUTXOs.size() << std::endl;
+        for (const auto& utxo : aliceUTXOs) {
+            std::cout << "utxo: " << utxo.getTxId() << ", " << utxo.getOutputIndex() << std::endl;
+            tx1.addInput(TransactionInput(utxo.getTxId(), utxo.getOutputIndex(), 
+                aliceWallet->sign(tx1.getTransactionId())));
+        }
+        tx1.addOutput(TransactionOutput(10.0, bobPublicKey));
+        if (blockchain.getBalance(alicePublicKey) > 10.0) {
+            tx1.addOutput(TransactionOutput(blockchain.getBalance(alicePublicKey) - 10.0, alicePublicKey));
+        }
         
-        // 添加区块（包含余额验证和更新）
-        blockchain.addBlock(transactions1);
+        // Bob sends 5 coins to Charlie
+        Transaction tx2(bobPublicKey, charliePublicKey, 5.0);
+        auto bobUTXOs = blockchain.getUTXOsForAddress(bobPublicKey);
+        for (const auto& utxo : bobUTXOs) {
+            tx2.addInput(TransactionInput(utxo.getTxId(), utxo.getOutputIndex(), 
+                bobWallet->sign(tx2.getTransactionId())));
+        }
+        tx2.addOutput(TransactionOutput(5.0, charliePublicKey));
+        if (blockchain.getBalance(bobPublicKey) > 5.0) {
+            tx2.addOutput(TransactionOutput(blockchain.getBalance(bobPublicKey) - 5.0, bobPublicKey));
+        }
         
-        // 打印余额
+        // Charlie sends 2.5 coins to Alice
+        Transaction tx3(charliePublicKey, alicePublicKey, 2.5);
+        auto charlieUTXOs = blockchain.getUTXOsForAddress(charliePublicKey);
+        for (const auto& utxo : charlieUTXOs) {
+            tx3.addInput(TransactionInput(utxo.getTxId(), utxo.getOutputIndex(), 
+                charlieWallet->sign(tx3.getTransactionId())));
+        }
+        tx3.addOutput(TransactionOutput(2.5, alicePublicKey));
+        if (blockchain.getBalance(charliePublicKey) > 2.5) {
+            tx3.addOutput(TransactionOutput(blockchain.getBalance(charliePublicKey) - 2.5, charliePublicKey));
+        }
+        
+        // Add transactions to pool
+        blockchain.addTransactionToPool(tx1);
+        blockchain.addTransactionToPool(tx2);
+        blockchain.addTransactionToPool(tx3);
+        
+        // Add block (includes transactions from pool)
+        blockchain.addBlock({});
+        
+        // Print balances
         std::cout << "\nBalances after first block:" << std::endl;
-        std::cout << "Alice: " << aliceWallet->getBalance() << std::endl;
-        std::cout << "Bob: " << bobWallet->getBalance() << std::endl;
-        std::cout << "Charlie: " << charlieWallet->getBalance() << std::endl;
+        std::cout << "Alice: " << blockchain.getBalance(alicePublicKey) << std::endl;
+        std::cout << "Bob: " << blockchain.getBalance(bobPublicKey) << std::endl;
+        std::cout << "Charlie: " << blockchain.getBalance(charliePublicKey) << std::endl;
         
-        // 创建第二个交易集合
-        std::cout << "\nCreating second transaction set..." << std::endl;
-        std::vector<Transaction> transactions2 = {
-            Transaction(alicePublicKey, charliePublicKey, 7.5),
-            Transaction(charliePublicKey, bobPublicKey, 3.0)
-        };
+        // Create second group of transactions
+        std::cout << "\nCreating second group of transactions..." << std::endl;
         
-        // 签名第二个交易集合
-        transactions2[0].setSignature(aliceWallet->sign(transactions2[0].getTransactionId()));
-        transactions2[1].setSignature(charlieWallet->sign(transactions2[1].getTransactionId()));
+        // Alice sends 7.5 coins to Charlie
+        Transaction tx4(alicePublicKey, charliePublicKey, 7.5);
+        aliceUTXOs = blockchain.getUTXOsForAddress(alicePublicKey);
+        for (const auto& utxo : aliceUTXOs) {
+            tx4.addInput(TransactionInput(utxo.getTxId(), utxo.getOutputIndex(), 
+                aliceWallet->sign(tx4.getTransactionId())));
+        }
+        tx4.addOutput(TransactionOutput(7.5, charliePublicKey));
+        if (blockchain.getBalance(alicePublicKey) > 7.5) {
+            tx4.addOutput(TransactionOutput(blockchain.getBalance(alicePublicKey) - 7.5, alicePublicKey));
+        }
         
-        // 添加区块（包含余额验证和更新）
-        blockchain.addBlock(transactions2);
+        // Charlie sends 3 coins to Bob
+        Transaction tx5(charliePublicKey, bobPublicKey, 3.0);
+        charlieUTXOs = blockchain.getUTXOsForAddress(charliePublicKey);
+        for (const auto& utxo : charlieUTXOs) {
+            tx5.addInput(TransactionInput(utxo.getTxId(), utxo.getOutputIndex(), 
+                charlieWallet->sign(tx5.getTransactionId())));
+        }
+        tx5.addOutput(TransactionOutput(3.0, bobPublicKey));
+        if (blockchain.getBalance(charliePublicKey) > 3.0) {
+            tx5.addOutput(TransactionOutput(blockchain.getBalance(charliePublicKey) - 3.0, charliePublicKey));
+        }
         
-        // 打印余额
+        // Add transactions to pool
+        blockchain.addTransactionToPool(tx4);
+        blockchain.addTransactionToPool(tx5);
+        
+        // Add block
+        blockchain.addBlock({});
+        
+        // Print balances
         std::cout << "\nBalances after second block:" << std::endl;
-        std::cout << "Alice: " << aliceWallet->getBalance() << std::endl;
-        std::cout << "Bob: " << bobWallet->getBalance() << std::endl;
-        std::cout << "Charlie: " << charlieWallet->getBalance() << std::endl;
+        std::cout << "Alice: " << blockchain.getBalance(alicePublicKey) << std::endl;
+        std::cout << "Bob: " << blockchain.getBalance(bobPublicKey) << std::endl;
+        std::cout << "Charlie: " << blockchain.getBalance(charliePublicKey) << std::endl;
         
-        // 验证区块链
+        // Verify blockchain
         std::cout << "\nIs blockchain valid: " << (blockchain.isChainValid() ? "Yes" : "No") << std::endl;
         
-        // 打印最终余额
+        // Print final balances
         std::cout << "\nFinal balances:" << std::endl;
-        std::cout << "Alice: " << aliceWallet->getBalance() << std::endl;
-        std::cout << "Bob: " << bobWallet->getBalance() << std::endl;
-        std::cout << "Charlie: " << charlieWallet->getBalance() << std::endl;
+        std::cout << "Alice: " << blockchain.getBalance(alicePublicKey) << std::endl;
+        std::cout << "Bob: " << blockchain.getBalance(bobPublicKey) << std::endl;
+        std::cout << "Charlie: " << blockchain.getBalance(charliePublicKey) << std::endl;
         
-        // 打印区块链信息
-        std::cout << "\nBlockchain Information:" << std::endl;
+        // Print blockchain information
+        std::cout << "\nBlockchain Information:" << blockchain.getChain().size() << std::endl;
         for (const auto& block : blockchain.getChain()) {
             std::cout << "\n  ------------" << "Index: " << block->getIndex() << "------------" << std::endl;
             std::cout << "  Timestamp: " << block->getTimestamp() << std::endl;
@@ -108,7 +163,7 @@ int main() {
             std::cout << "  Hash: " << block->getHash() << std::endl;
             std::cout << "  Nonce: " << block->getNonce() << std::endl;
             
-            std::cout << "\n  Transactions:" << std::endl;
+            std::cout << "\n  Transactions:" << block->getTransactions().size() << std::endl;
             for (const auto& tx : block->getTransactions()) {
                 std::cout << "    ------------------------" << std::endl;
                 std::cout << "    From: " << tx.getFrom() << std::endl;
@@ -116,18 +171,18 @@ int main() {
                 std::cout << "    Amount: " << tx.getAmount() << std::endl;
                 std::cout << "    Transaction ID: " << tx.getTransactionId() << std::endl;
                 std::cout << "    Signature Valid: " << (tx.verifySignature() ? "Yes" : "No") << std::endl;
-            }
-            
-            // 在添加区块后打印 Merkle 树结构
-            std::cout << "\n  Merkle Tree for Block " << block->getIndex() << ":" << std::endl;
-            MerkleTree tree(block->getTransactions());
-            tree.printTree();
-            
-            // 验证每个交易
-            std::cout << "\n  Verifying transactions..." << std::endl;
-            for (const auto& tx : block->getTransactions()) {
-                std::cout << "    Transaction " << tx.getTransactionId() << " is " 
-                          << (tree.verifyTransaction(tx) ? "valid" : "invalid") << std::endl;
+                
+                std::cout << "    Inputs:" << tx.getInputs().size() << std::endl;
+                for (const auto& input : tx.getInputs()) {
+                    std::cout << "      Transaction ID: " << input.getTxId() << std::endl;
+                    std::cout << "      Output Index: " << input.getOutputIndex() << std::endl;
+                }
+                
+                std::cout << "    Outputs:" << tx.getOutputs().size() << std::endl;
+                for (const auto& output : tx.getOutputs()) {
+                    std::cout << "      Amount: " << output.getAmount() << std::endl;
+                    std::cout << "      Owner: " << output.getOwner() << std::endl;
+                }
             }
         }
         

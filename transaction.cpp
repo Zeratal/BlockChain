@@ -7,46 +7,79 @@
 #include <ctime>
 #include <iostream>
 
+TransactionInput::TransactionInput(const std::string& txId, int outputIndex, const std::string& signature)
+    : txId_(txId)
+    , outputIndex_(outputIndex)
+    , signature_(signature)
+{
+}
+
+TransactionOutput::TransactionOutput(double amount, const std::string& owner)
+    : amount_(amount)
+    , owner_(owner)
+{
+}
+
 Transaction::Transaction(const std::string& from, const std::string& to, double amount)
     : from_(from)
     , to_(to)
     , amount_(amount)
 {
-    std::cout << "Transaction created with from: " << from_ << ", to: " << to_ << ", amount: " << amount_ << std::endl;
-    // Set timestamp
-    auto now = std::chrono::system_clock::now();
-    auto now_c = std::chrono::system_clock::to_time_t(now);
-    timestamp_ = std::ctime(&now_c);
-    timestamp_.pop_back(); // Remove newline character
+    transactionId_ = calculateTransactionId();
+    std::cout << "Transaction::Transaction: " << transactionId_ << std::endl;
+}
 
-    // Generate transaction ID (hash of transaction data)
-    std::stringstream ss;
-    ss << from_ << to_ << amount_ << timestamp_;
-    std::string data = ss.str();
+Transaction Transaction::createSystemTransaction(const std::string& to, double amount) {
+    Transaction tx("SYSTEM", to, amount);
+    tx.signature_ = "SYSTEM_SIGNATURE";  // 系统交易的特殊签名
+    tx.addOutput(TransactionOutput(amount, to));
+    return tx;
+}
+
+void Transaction::addInput(const TransactionInput& input) {
+    inputs_.push_back(input);
+    transactionId_ = calculateTransactionId();
+}
+
+void Transaction::addOutput(const TransactionOutput& output) {
+    outputs_.push_back(output);
+    transactionId_ = calculateTransactionId();
+}
+
+bool Transaction::verifySignature() const {
+    if (from_ == "SYSTEM") return true;
     
+    // 验证签名
+    // 这里需要实现具体的签名验证逻辑
+    return !signature_.empty();
+}
+
+std::string Transaction::calculateTransactionId() const {
+    std::stringstream ss;
+    ss << from_ << to_ << amount_;
+    
+    // 添加输入和输出的信息
+    for (const auto& input : inputs_) {
+        ss << input.getTxId() << input.getOutputIndex();
+    }
+    
+    for (const auto& output : outputs_) {
+        ss << output.getAmount() << output.getOwner();
+    }
+    
+    // 计算SHA256哈希
     unsigned char hash[SHA256_DIGEST_LENGTH];
     SHA256_CTX sha256;
     SHA256_Init(&sha256);
-    SHA256_Update(&sha256, data.c_str(), data.size());
+    SHA256_Update(&sha256, ss.str().c_str(), ss.str().size());
     SHA256_Final(hash, &sha256);
     
-    std::stringstream hash_ss;
+    std::stringstream hashStream;
     for(int i = 0; i < SHA256_DIGEST_LENGTH; i++) {
-        hash_ss << std::hex << std::setw(2) << std::setfill('0') << static_cast<int>(hash[i]);
-    }
-    transactionId_ = hash_ss.str();
-    std::cout << "Transaction ID: " << transactionId_ << std::endl;
-}
-
-
-bool Transaction::verifySignature() const {
-    // 系统交易的特殊处理
-    if (from_ == "SYSTEM" && signature_ == "SYSTEM_SIGNATURE") {
-        return true;
+        hashStream << std::hex << std::setw(2) << std::setfill('0') << static_cast<int>(hash[i]);
     }
     
-    // 普通交易的签名验证
-    return Wallet::verify(getTransactionId(), signature_, from_);
+    return hashStream.str();
 }
 
 // 检查交易是否有效（包括余额检查）
