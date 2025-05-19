@@ -8,13 +8,14 @@ UTXO::UTXO(const std::string& txId, int outputIndex, double amount, const std::s
     , owner_(owner)
     , spent_(false)
 {
+    std::cout << "UTXO::UTXO create" << "txId: " << txId_ << ", outputIndex: " << outputIndex_ << ", amount: " << amount_ << ", owner: " << owner_ << ", spent: " << spent_ << std::endl;
 }
 
 UTXOPool::UTXOPool() {
 }
 
 void UTXOPool::addUTXO(const UTXO& utxo) {
-    std::cout << "addUTXO: " << utxo.getTxId() << ", " << utxo.getOutputIndex() << std::endl;
+    std::cout << "UTXOPool::addUTXO: " << utxo.getTxId() << ", " << utxo.getOutputIndex() << std::endl;
     utxos_[utxo.getTxId()][utxo.getOutputIndex()] = utxo;
 }
 
