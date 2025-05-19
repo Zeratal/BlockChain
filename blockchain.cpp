@@ -20,13 +20,14 @@ std::shared_ptr<Block> Blockchain::createGenesisBlock() {
 }
 
 void Blockchain::addBlock(const std::vector<Transaction>& transactions) {
+    std::cout << "addBlock: " << transactions.size() << std::endl;
     // 从交易池中获取待处理交易
     auto pendingTransactions = transactionPool_.getTransactions();
-    
     // 合并新交易和待处理交易
     std::vector<Transaction> allTransactions = transactions;
+    std::cout << "  allTransactions: " << allTransactions.size() << " + pendingTransactions: " << pendingTransactions.size() << std::endl;
     allTransactions.insert(allTransactions.end(), pendingTransactions.begin(), pendingTransactions.end());
-    
+    std::cout << "  allTransactions: " << allTransactions.size() << std::endl;
     // 创建新区块
     auto newBlock = std::make_shared<Block>(
         chain_.size(),
@@ -35,24 +36,25 @@ void Blockchain::addBlock(const std::vector<Transaction>& transactions) {
     );
     
     // 挖矿
-    std::cout << "mineBlock: " << newBlock->getHash() << std::endl;
+    std::cout << "  mineBlock: " << newBlock->getHash() << std::endl;
     newBlock->mineBlock(difficulty_);
     
     // 添加区块到链上 
-    std::cout << "addBlock: " << newBlock->getHash() << std::endl;
+    std::cout << "  addBlock: " << newBlock->getHash() << std::endl;
     chain_.push_back(newBlock);
     // 更新UTXO池
-    std::cout << "updateUTXOPool: " << newBlock->getHash() << std::endl;
+    std::cout << "  updateUTXOPool: " << newBlock->getHash() << std::endl;
     updateUTXOPool(*newBlock);
     
     // 清空交易池中已确认的交易
     for (const auto& tx : allTransactions) {
-        std::cout << "removeTransaction: " << tx.getTransactionId() << std::endl;
+        std::cout << "    removeTransaction: " << tx.getTransactionId() << std::endl;
         transactionPool_.removeTransaction(tx.getTransactionId());
     }
 }
 
 bool Blockchain::addTransactionToPool(const Transaction& transaction) {
+    std::cout << "addTransactionToPool: " << transaction.getTransactionId() << std::endl;
     return transactionPool_.addTransaction(transaction, utxoPool_);
 }
 
@@ -65,18 +67,20 @@ void Blockchain::updateUTXOPool(const Block& block) {
     for (const auto& tx : block.getTransactions()) {
         // 移除已使用的UTXO
         std::cout << "updateUTXOPool: " << tx.getTransactionId() << std::endl;
+        std::cout << "  inputs: " << tx.getInputs().size() << std::endl;
         for (const auto& input : tx.getInputs()) {
             utxoPool_.removeUTXO(input.getTxId(), input.getOutputIndex());
-            std::cout << "removeUTXO: " << input.getTxId() << ", " << input.getOutputIndex() << std::endl;
+            std::cout << "  removeUTXO: " << input.getTxId() << ", " << input.getOutputIndex() << std::endl;
         }
         
         // 添加新的UTXO
+        std::cout << "  outputs: " << tx.getOutputs().size() << std::endl;
         for (size_t i = 0; i < tx.getOutputs().size(); ++i) {
-            std::cout << "addUTXO: " << tx.getTransactionId() << ", " << i << std::endl;
+            std::cout << "  addUTXO: " << tx.getTransactionId() << ", " << i << std::endl;
             const auto& output = tx.getOutputs()[i];
             UTXO utxo(tx.getTransactionId(), i, output.getAmount(), output.getOwner());
             utxoPool_.addUTXO(utxo);
-            std::cout << "addUTXO: " << utxo.getTxId() << ", " << utxo.getOutputIndex() << std::endl;
+            std::cout << "  addUTXO: " << utxo.getTxId() << ", " << utxo.getOutputIndex() << std::endl;
         }
     }
 }
