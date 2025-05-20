@@ -25,8 +25,8 @@ Transaction::Transaction(const std::string& from, const std::string& to, double 
     , to_(to)
     , amount_(amount)
 {
+    std::cout << "Transaction::Transaction: " << from_ << " " << to_ << " " << amount_ << std::endl;
     transactionId_ = calculateTransactionId();
-    std::cout << "Transaction::Transaction: " << transactionId_ << std::endl;
 }
 
 Transaction Transaction::createSystemTransaction(const std::string& to, double amount) {
@@ -37,11 +37,13 @@ Transaction Transaction::createSystemTransaction(const std::string& to, double a
 }
 
 void Transaction::addInput(const TransactionInput& input) {
+    std::cout << "Transaction::addInput: " << transactionId_ << " input: " << input.getTxId() << " " << input.getOutputIndex() << std::endl;
     inputs_.push_back(input);
     transactionId_ = calculateTransactionId();
 }
 
 void Transaction::addOutput(const TransactionOutput& output) {
+    std::cout << "Transaction::addOutput: " << transactionId_ << " output: " << output.getAmount() << " " << output.getOwner() << std::endl;
     outputs_.push_back(output);
     transactionId_ = calculateTransactionId();
 }
@@ -50,7 +52,7 @@ bool Transaction::verifySignature() const {
     if (from_ == "SYSTEM") return true;
     
     // 验证签名
-    std::cout << "Transaction::verifySignature: " << transactionId_ << " signature: " << signature_ << std::endl;
+    // std::cout << "Transaction::verifySignature: " << transactionId_ << " signature: " << signature_ << std::endl;
     Wallet::verify(transactionId_, signature_, from_);
     // 这里需要实现具体的签名验证逻辑
     return !signature_.empty();

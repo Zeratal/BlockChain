@@ -47,6 +47,7 @@ void Blockchain::addBlock(const std::vector<Transaction>& transactions) {
     updateUTXOPool(*newBlock);
     
     // 清空交易池中已确认的交易
+    std::cout << "\n  clearTransactionPool: " << allTransactions.size() << std::endl;
     for (const auto& tx : allTransactions) {
         std::cout << "    removeTransaction: " << tx.getTransactionId() << std::endl;
         transactionPool_.removeTransaction(tx.getTransactionId());
@@ -64,29 +65,30 @@ std::vector<Transaction> Blockchain::getPendingTransactions() const {
 
 void Blockchain::updateUTXOPool(const Block& block) {
     // 处理区块中的每个交易
+    std::cout << "\n  updateUTXOPool: " << block.getTransactions().size() << std::endl;
     for (const auto& tx : block.getTransactions()) {
         // 移除已使用的UTXO
-        std::cout << "updateUTXOPool: " << tx.getTransactionId() << std::endl;
-        std::cout << "  inputs: " << tx.getInputs().size() << std::endl;
+        std::cout << "    updateUTXOPool: " << tx.getTransactionId() << std::endl;
+        std::cout << "    inputs: " << tx.getInputs().size() << std::endl;
         for (const auto& input : tx.getInputs()) {
             utxoPool_.removeUTXO(input.getTxId(), input.getOutputIndex());
-            std::cout << "  removeUTXO: " << input.getTxId() << ", " << input.getOutputIndex() << std::endl;
+            std::cout << "      removeUTXO: " << input.getTxId() << ", " << input.getOutputIndex() << std::endl;
         }
         
         // 添加新的UTXO
-        std::cout << "  outputs: " << tx.getOutputs().size() << std::endl;
+        std::cout << "    outputs: " << tx.getOutputs().size() << std::endl;
         for (size_t i = 0; i < tx.getOutputs().size(); ++i) {
-            std::cout << "  addUTXO: " << tx.getTransactionId() << ", " << i << std::endl;
+            std::cout << "      addUTXO: " << tx.getTransactionId() << ", " << i << std::endl;
             const auto& output = tx.getOutputs()[i];
             UTXO utxo(tx.getTransactionId(), i, output.getAmount(), output.getOwner());
             utxoPool_.addUTXO(utxo);
-            std::cout << "  addUTXO: " << utxo.getTxId() << ", " << utxo.getOutputIndex() << std::endl;
+            // std::cout << "      addUTXO: UTXO: " << utxo.getTxId() << ", " << utxo.getOutputIndex() << ", " << utxo.getAmount() << ", " << utxo.getOwner() << std::endl;
         }
     }
 }
 
 double Blockchain::getBalance(const std::string& address) const {
-    std::cout << "getBalance: " << address << std::endl;
+    // std::cout << "getBalance: " << address << std::endl;
     return utxoPool_.getBalance(address);
 }
 
@@ -110,6 +112,7 @@ bool Blockchain::isChainValid() const {
 
 // 验证交易（包括余额检查）
 bool Blockchain::validateTransaction(const Transaction& tx) const {
+    std::cout << "Blockchain::validateTransaction: " << tx.getTransactionId() << std::endl;
     // 检查签名
     if (!tx.verifySignature()) {
         std::cout << "Transaction signature verification failed" << std::endl;

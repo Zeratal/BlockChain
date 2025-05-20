@@ -8,25 +8,25 @@ UTXO::UTXO(const std::string& txId, int outputIndex, double amount, const std::s
     , owner_(owner)
     , spent_(false)
 {
-    std::cout << "UTXO::UTXO create" << "txId: " << txId_ << ", outputIndex: " << outputIndex_ << ", amount: " << amount_ << ", owner: " << owner_ << ", spent: " << spent_ << std::endl;
+    std::cout << "      UTXO::UTXO create" << "txId: " << txId_ << ", outputIndex: " << outputIndex_ << ", amount: " << amount_ << ", owner: " << owner_ << ", spent: " << spent_ << std::endl;
 }
 
 UTXOPool::UTXOPool() {
 }
 
 void UTXOPool::addUTXO(const UTXO& utxo) {
-    std::cout << "UTXOPool::addUTXO: " << utxo.getTxId() << ", " << utxo.getOutputIndex() << std::endl;
+    std::cout << "      UTXOPool::addUTXO: " << utxo.getTxId() << ", " << utxo.getOutputIndex() << std::endl;
     utxos_[utxo.getTxId()][utxo.getOutputIndex()] = utxo;
 }
 
 void UTXOPool::removeUTXO(const std::string& txId, int outputIndex) {
-    std::cout << "removeUTXO: " << txId << ", " << outputIndex << std::endl;
+    std::cout << "      removeUTXO: " << txId << ", " << outputIndex << std::endl;
     auto txIt = utxos_.find(txId);
     if (txIt != utxos_.end()) {
-        std::cout << "removeUTXO: " << txId << ", " << outputIndex << " found" << std::endl;
+        std::cout << "      removeUTXO: " << txId << ", " << outputIndex << " found" << std::endl;
         txIt->second.erase(outputIndex);
         if (txIt->second.empty()) {
-            std::cout << "removeUTXO: " << txId << ", " << outputIndex << " erased" << std::endl;
+            std::cout << "      removeUTXO: " << txId << ", " << outputIndex << " erased" << std::endl;
             utxos_.erase(txIt);
         }
     }

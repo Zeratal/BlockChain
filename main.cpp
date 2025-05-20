@@ -47,8 +47,10 @@ int main() {
         std::cout << "\nCreating first group of transactions..." << std::endl;
         
         // Alice sends 10 coins to Bob
+
+        std::cout << "\nAlice sends 10 coins to Bob" << std::endl;
         Transaction tx1(alicePublicKey, bobPublicKey, 10.0);
-        std::cout << "tx1: " << tx1.getTransactionId() << std::endl;
+        std::cout << "\ntx1: " << tx1.getTransactionId() << std::endl;
         auto aliceUTXOs = blockchain.getUTXOsForAddress(alicePublicKey);
         std::cout << "aliceUTXOs: " << aliceUTXOs.size() << std::endl;
         std::string tx1Signature = aliceWallet->sign(tx1.getTransactionId());
@@ -59,29 +61,31 @@ int main() {
         }
         tx1.addOutput(TransactionOutput(10.0, bobPublicKey));
         if (blockchain.getBalance(alicePublicKey) > 10.0) {
-            std::cout << "addOutput alicePublicKey: " << blockchain.getBalance(alicePublicKey) - 10.0 << std::endl;
+            std::cout << "addOutput alicePublicKey balance: " << blockchain.getBalance(alicePublicKey) - 10.0 << std::endl;
             tx1.addOutput(TransactionOutput(blockchain.getBalance(alicePublicKey) - 10.0, alicePublicKey));
         }
         
         // Bob sends 5 coins to Charlie
+        std::cout << "\nBob sends 5 coins to Charlie" << std::endl;
         Transaction tx2(bobPublicKey, charliePublicKey, 5.0);
-        std::cout << "tx2: " << tx2.getTransactionId() << std::endl;
+        std::cout << "\ntx2: " << tx2.getTransactionId() << std::endl;
         auto bobUTXOs = blockchain.getUTXOsForAddress(bobPublicKey);
         std::cout << "bobUTXOs: " << bobUTXOs.size() << std::endl;
         std::string tx2Signature = bobWallet->sign(tx2.getTransactionId());
         tx2.setSignature(tx2Signature);
         for (const auto& utxo : bobUTXOs) {
-            std::cout << "addInput utxo: " << utxo.getTxId() << ", " << utxo.getOutputIndex() << std::endl;
             tx2.addInput(TransactionInput(utxo.getTxId(), utxo.getOutputIndex(), tx2Signature));
         }
         tx2.addOutput(TransactionOutput(5.0, charliePublicKey));
         if (blockchain.getBalance(bobPublicKey) > 5.0) {
-            std::cout << "addOutput bobPublicKey: " << blockchain.getBalance(bobPublicKey) - 5.0 << std::endl;
+            std::cout << "addOutput bobPublicKey balance: " << blockchain.getBalance(bobPublicKey) - 5.0 << std::endl;
             tx2.addOutput(TransactionOutput(blockchain.getBalance(bobPublicKey) - 5.0, bobPublicKey));
         }
         
         // Charlie sends 2.5 coins to Alice
+        std::cout << "\nCharlie sends 2.5 coins to Alice" << std::endl;
         Transaction tx3(charliePublicKey, alicePublicKey, 2.5);
+        std::cout << "\ntx3: " << tx3.getTransactionId() << std::endl;
         auto charlieUTXOs = blockchain.getUTXOsForAddress(charliePublicKey);
         std::cout << "charlieUTXOs: " << charlieUTXOs.size() << std::endl;
         std::string tx3Signature = charlieWallet->sign(tx3.getTransactionId());
@@ -92,19 +96,20 @@ int main() {
         }
         tx3.addOutput(TransactionOutput(2.5, alicePublicKey));
         if (blockchain.getBalance(charliePublicKey) > 2.5) {
-            std::cout << "addOutput charliePublicKey: " << blockchain.getBalance(charliePublicKey) - 2.5 << std::endl;
+            std::cout << "addOutput charliePublicKey balance: " << blockchain.getBalance(charliePublicKey) - 2.5 << std::endl;
             tx3.addOutput(TransactionOutput(blockchain.getBalance(charliePublicKey) - 2.5, charliePublicKey));
         }
         
         // Add transactions to pool
-        std::cout << "addTransactionToPool tx1" << std::endl;
+        std::cout << "\naddTransactionToPool tx1" << std::endl;
         blockchain.addTransactionToPool(tx1);
-        std::cout << "addTransactionToPool tx2" << std::endl;
+        std::cout << "\naddTransactionToPool tx2" << std::endl;
         blockchain.addTransactionToPool(tx2);
-        std::cout << "addTransactionToPool tx3" << std::endl;
+        std::cout << "\naddTransactionToPool tx3" << std::endl;
         blockchain.addTransactionToPool(tx3);
         
         // Add block (includes transactions from pool)
+        std::cout << "\nmain: addBlock" << std::endl;
         blockchain.addBlock({});
         
         // Print balances
@@ -117,34 +122,49 @@ int main() {
         std::cout << "\nCreating second group of transactions..." << std::endl;
         
         // Alice sends 7.5 coins to Charlie
+        std::cout << "\nAlice sends 7.5 coins to Charlie" << std::endl;
         Transaction tx4(alicePublicKey, charliePublicKey, 7.5);
+        std::cout << "\ntx4: " << tx4.getTransactionId() << std::endl;
         aliceUTXOs = blockchain.getUTXOsForAddress(alicePublicKey);
+        std::cout << "aliceUTXOs: " << aliceUTXOs.size() << std::endl;
         std::string tx4Signature = aliceWallet->sign(tx4.getTransactionId());
+        tx4.setSignature(tx4Signature);
         for (const auto& utxo : aliceUTXOs) {
+            std::cout << "addInput utxo: " << utxo.getTxId() << ", " << utxo.getOutputIndex() << std::endl;
             tx4.addInput(TransactionInput(utxo.getTxId(), utxo.getOutputIndex(), tx4Signature));
         }
         tx4.addOutput(TransactionOutput(7.5, charliePublicKey));
         if (blockchain.getBalance(alicePublicKey) > 7.5) {
+            std::cout << "addOutput alicePublicKey balance: " << blockchain.getBalance(alicePublicKey) - 7.5 << std::endl;
             tx4.addOutput(TransactionOutput(blockchain.getBalance(alicePublicKey) - 7.5, alicePublicKey));
         }
         
         // Charlie sends 3 coins to Bob
+        std::cout << "\nCharlie sends 3 coins to Bob" << std::endl;
         Transaction tx5(charliePublicKey, bobPublicKey, 3.0);
+        std::cout << "\ntx5: " << tx5.getTransactionId() << std::endl;
         charlieUTXOs = blockchain.getUTXOsForAddress(charliePublicKey);
+        std::cout << "charlieUTXOs: " << charlieUTXOs.size() << std::endl;
         std::string tx5Signature = charlieWallet->sign(tx5.getTransactionId());
+        tx5.setSignature(tx5Signature);
         for (const auto& utxo : charlieUTXOs) {
+            std::cout << "addInput utxo: " << utxo.getTxId() << ", " << utxo.getOutputIndex() << std::endl;
             tx5.addInput(TransactionInput(utxo.getTxId(), utxo.getOutputIndex(), tx5Signature));
         }
         tx5.addOutput(TransactionOutput(3.0, bobPublicKey));
         if (blockchain.getBalance(charliePublicKey) > 3.0) {
+            std::cout << "addOutput charliePublicKey balance: " << blockchain.getBalance(charliePublicKey) - 3.0 << std::endl;
             tx5.addOutput(TransactionOutput(blockchain.getBalance(charliePublicKey) - 3.0, charliePublicKey));
         }
         
         // Add transactions to pool
+        std::cout << "\naddTransactionToPool tx4" << std::endl;
         blockchain.addTransactionToPool(tx4);
+        std::cout << "\naddTransactionToPool tx5" << std::endl;
         blockchain.addTransactionToPool(tx5);
         
         // Add block
+        std::cout << "\nmain: addBlock" << std::endl;
         blockchain.addBlock({});
         
         // Print balances
