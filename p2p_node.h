@@ -77,4 +77,5 @@ private:
     std::condition_variable queue_cv_;  // 添加条件变量声明
     std::atomic<bool> running_;
     std::thread message_thread_;
+    std::thread io_thread_;  // 添加 IO 线程
 }; 

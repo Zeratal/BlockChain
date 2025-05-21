@@ -18,6 +18,9 @@ void runNode(const std::string& host, int port, const std::vector<std::pair<std:
         
         // 启动节点
         std::cout << "Starting node on " << host << ":" << port << std::endl;
+        for (const auto& [peerHost, peerPort] : peers) {
+            std::cout << "Connecting to peer " << peerHost << ":" << peerPort << std::endl;
+        }
         node->start();
         
         // 连接到其他节点
