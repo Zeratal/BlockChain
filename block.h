@@ -5,10 +5,12 @@
 #include <memory>
 #include "transaction.h"
 #include "merkletree.h"
+#include <nlohmann/json.hpp>
 
 class Block {
 public:
     Block(int index, const std::vector<Transaction>& transactions, const std::string& previousHash);
+    Block(const nlohmann::json& json);
     
     std::string calculateHash() const;
     void mineBlock(int difficulty);
@@ -24,6 +26,10 @@ public:
     const std::vector<Transaction>& getTransactions() const { return transactions_; }
     const std::map<std::string, double>& getBalanceChanges() const { return balanceChanges_; }
     void setBalanceChanges(const std::map<std::string, double>& balanceChanges) { balanceChanges_ = balanceChanges; }
+
+    // 将区块转换为 JSON 字符串
+    std::string toJson() const;
+
 private:
 
     std::map<std::string, double> balanceChanges_;  // 记录每个地址的余额变更

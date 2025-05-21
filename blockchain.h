@@ -20,6 +20,9 @@ public:
     bool validateTransaction(const Transaction& tx) const;
     double getBalance(const std::string& address) const;
     
+    // 获取从指定高度开始的所有区块
+    std::vector<Block> getBlocksFromHeight(int startHeight) const;
+    
     // 添加钱包管理功能
     void registerWallet(std::shared_ptr<Wallet> wallet);
     std::shared_ptr<Wallet> getWalletByPublicKey(const std::string& publicKey) const;

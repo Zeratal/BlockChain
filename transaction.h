@@ -5,6 +5,7 @@
 #include "wallet.h"
 #include <vector>
 #include <memory>
+#include <nlohmann/json.hpp>
 
 class TransactionInput {
 public:
@@ -36,6 +37,7 @@ class Transaction {
 public:
     Transaction() : amount_(0.0) {}  // 添加默认构造函数
     Transaction(const std::string& from, const std::string& to, double amount);
+    Transaction(const nlohmann::json& json);  // 添加从 JSON 构造的构造函数
     
     // Getters
     const std::string& getFrom() const { return from_; }
@@ -63,6 +65,9 @@ public:
     void addOutput(const TransactionOutput& output);
     const std::vector<TransactionInput>& getInputs() const { return inputs_; }
     const std::vector<TransactionOutput>& getOutputs() const { return outputs_; }
+
+    // 将交易转换为 JSON 字符串
+    std::string toJson() const;
 
 private:
     std::string from_;          // 发送方公钥

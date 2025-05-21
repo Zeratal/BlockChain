@@ -145,3 +145,13 @@ std::shared_ptr<Wallet> Blockchain::getWalletByPublicKey(const std::string& publ
 std::vector<UTXO> Blockchain::getUTXOsForAddress(const std::string& address) const {
     return utxoPool_.getUTXOsForAddress(address);
 }
+
+std::vector<Block> Blockchain::getBlocksFromHeight(int startHeight) const {
+    std::vector<Block> blocks;
+    for (size_t i = startHeight; i < chain_.size(); ++i) {
+        // 从智能指针获取 Block 对象
+        const Block& block = *chain_[i];
+        blocks.push_back(block);
+    }
+    return blocks;
+}

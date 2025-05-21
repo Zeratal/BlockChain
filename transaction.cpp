@@ -7,6 +7,8 @@
 #include <ctime>
 #include <iostream>
 
+using json = nlohmann::json;
+
 TransactionInput::TransactionInput(const std::string& txId, int outputIndex, const std::string& signature)
     : txId_(txId)
     , outputIndex_(outputIndex)
@@ -89,5 +91,70 @@ std::string Transaction::calculateTransactionId() const {
 // 检查交易是否有效（包括余额检查）
 bool Transaction::isValid() const {
     return !from_.empty() && !to_.empty() && amount_ > 0 && !signature_.empty();
+}
+
+std::string Transaction::toJson() const {
+    json j;
+    j["from"] = from_;
+    j["to"] = to_;
+    j["amount"] = amount_;
+    j["timestamp"] = timestamp_;
+    j["transactionId"] = transactionId_;
+    j["signature"] = signature_;
+    
+    // 添加输入
+    json inputs = json::array();
+    for (const auto& input : inputs_) {
+        json inputJson;
+        inputJson["txId"] = input.getTxId();
+        inputJson["outputIndex"] = input.getOutputIndex();
+        inputJson["signature"] = input.getSignature();
+        inputs.push_back(inputJson);
+    }
+    j["inputs"] = inputs;
+    
+    // 添加输出
+    json outputs = json::array();
+    for (const auto& output : outputs_) {
+        json outputJson;
+        outputJson["amount"] = output.getAmount();
+        outputJson["owner"] = output.getOwner();
+        outputs.push_back(outputJson);
+    }
+    j["outputs"] = outputs;
+    
+    return j.dump();
+}
+
+Transaction::Transaction(const json& json) {
+    from_ = json["from"];
+    to_ = json["to"];
+    amount_ = json["amount"];
+    timestamp_ = json["timestamp"];
+    transactionId_ = json["transactionId"];
+    signature_ = json["signature"];
+    
+    // 解析输入
+    if (json.contains("inputs")) {
+        for (const auto& inputJson : json["inputs"]) {
+            TransactionInput input(
+                inputJson["txId"],
+                inputJson["outputIndex"],
+                inputJson["signature"]
+            );
+            inputs_.push_back(input);
+        }
+    }
+    
+    // 解析输出
+    if (json.contains("outputs")) {
+        for (const auto& outputJson : json["outputs"]) {
+            TransactionOutput output(
+                outputJson["amount"],
+                outputJson["owner"]
+            );
+            outputs_.push_back(output);
+        }
+    }
 }
 

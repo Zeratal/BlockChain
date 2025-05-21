@@ -6,6 +6,8 @@
 #include <ctime>
 #include <openssl/sha.h>
 
+using json = nlohmann::json;
+
 // Block 类实现
 Block::Block(int index, const std::vector<Transaction>& transactions, const std::string& previousHash)
     : index_(index)
@@ -24,6 +26,29 @@ Block::Block(int index, const std::vector<Transaction>& transactions, const std:
     merkleRoot_ = merkleTree.getRootHash();
     
     hash_ = calculateHash();
+}
+
+Block::Block(const json& json) {
+    index_ = json["index"];
+    timestamp_ = json["timestamp"];
+    previousHash_ = json["previousHash"];
+    hash_ = json["hash"];
+    nonce_ = json["nonce"];
+    merkleRoot_ = json["merkleRoot"];
+    
+    // 解析交易
+    for (const auto& txJson : json["transactions"]) {
+        Transaction tx(txJson["from"], txJson["to"], txJson["amount"]);
+        tx.setSignature(txJson["signature"]);
+        transactions_.push_back(tx);
+    }
+    
+    // 解析余额变更
+    if (json.contains("balanceChanges")) {
+        for (const auto& [key, value] : json["balanceChanges"].items()) {
+            balanceChanges_[key] = value;
+        }
+    }
 }
 
 std::string Block::sha256(const std::string& str) {
@@ -70,4 +95,30 @@ void Block::mineBlock(int difficulty) {
 // 验证当前区块的哈希是否与计算出的哈希一致
 bool Block::isValid() const {
     return hash_ == calculateHash();
+}
+
+std::string Block::toJson() const {
+    json j;
+    j["index"] = index_;
+    j["timestamp"] = timestamp_;
+    j["previousHash"] = previousHash_;
+    j["hash"] = hash_;
+    j["nonce"] = nonce_;
+    j["merkleRoot"] = merkleRoot_;
+    
+    // 添加交易
+    json transactions = json::array();
+    for (const auto& tx : transactions_) {
+        transactions.push_back(json::parse(tx.toJson()));
+    }
+    j["transactions"] = transactions;
+    
+    // 添加余额变更
+    json balanceChanges = json::object();
+    for (const auto& [key, value] : balanceChanges_) {
+        balanceChanges[key] = value;
+    }
+    j["balanceChanges"] = balanceChanges;
+    
+    return j.dump();
 }
