@@ -74,6 +74,7 @@ private:
     std::map<std::string, std::shared_ptr<tcp::socket>> connections_;
     std::queue<Message> message_queue_;
     std::mutex queue_mutex_;
+    std::condition_variable queue_cv_;  // 添加条件变量声明
     std::atomic<bool> running_;
     std::thread message_thread_;
 }; 

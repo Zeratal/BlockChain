@@ -110,6 +110,8 @@ void P2PNode::handleNewConnection() {
                                 std::unique_lock<std::mutex> lock(queue_mutex_);
                                 message_queue_.push(message);
                             }
+                            // 通知条件变量
+                            queue_cv_.notify_one();
                         }
                     });
             }
