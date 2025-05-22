@@ -2257,40 +2257,113 @@ GET_PEERS的响应，收到此消息后，遍历所有节点信息，并在本�
 1. PEERS节点列表中可能是本地已经存在的节点
 2. 各节点保存的连接信息里，port号有可能是第三方节点主动发起链接建立时新生成的port号，所以未必可以在该port上接受连接建立请求
 
+##### GET_BLOCKS
+
+GET_BLOCKS是一个 查询指定节点指定深度的块信息，猜测应该是块同步。收到此请求后，获取当前节点链上指定的块，封装为BLOCKS消息回应给请求方
+
+##### BLOCKS
+
+同NEW_BLOCK，只是此次是批量创建
+
+##### GET_UTXOS
+
+节点模块提供了requestUTXOs接口，向网络广播一个指定钱包的UTXO请求信息。
+
+接收到该消息的节点，查询本地链上的UTXO池，获取指定钱包的UTXO信息。并构建UTXOS消息响应给发送方。
+
+**UTXO查询功能**
+
+- `requestUTXOs`: 请求特定地址的UTXO数据
+- `handleUTXOsRequest`: 处理UTXO请求并返回相关数据
+
+##### UTXOS
+
+==本用例未提供处理参考==
+
+##### GET_BALANCE
+
+节点模块提供了requestBalance接口，向网络广播一个指定钱包的余额请求信息。
+
+接收到该消息的节点，查询本地链上的UTXO池，获取指定钱包的余额信息。并构建BALANCE消息响应给发送方。
+
+**余额查询功能**
+
+- `requestBalance`: 请求特定地址的余额
+- `handleBalanceRequest`: 处理余额请求并返回结果
+
+##### BALANCE
+
+==本用例未提供处理参考==
+
+#### 网络同步操作
+
+新增的区块链网络操作方法的主要
+
+##### SYNC_REQUEST
+
+节点模块提供了requestSync接口，向网络广播一个同步请求信息。
+
+接收到该消息的节点，查询本地链上的Bolck，获取指定深度的块。并构建SYNC_RESPONSE消息响应给发送方。（===所以和GET_BLOCKS有什么区别==）
+
+**区块链同步功能**
+
+- `requestSync`: 请求从特定高度开始的区块数据
+- `handleSyncRequest`: 处理同步请求并返回相关区块
+
+##### SYNC_RESPONSE
+
+==本用例未提供处理参考==，但其实应该和BLOCKS一样
+
+##### MINING_REQUEST
+
+节点模块提供了requestMining接口，向网络广播一个挖矿请求信息，该消息携带了一系列交易。
+
+接收到该消息的节点
+
+- 解析JSON交易信息，并构造交易
+- 创建一个新块，但指定使用本地链上未完成交易（==所以传过来的交易由什么用==）
+- 获取链上最新块，并封装为MINING_RESPONSE结果信息响应给发送方
+
+**挖矿功能**
+
+- `requestMining`: 请求创建包含特定交易的新区块
+- `handleMiningRequest`: 处理挖矿请求并返回新创建的区块
+
+##### MINING_RESPONSE
+
+==本用例未提供处理参考==，但其实应该和BLOCKS一样
+
+##### CONSENSUS_VOTE
+
+节点模块提供了broadcastConsensusVote接口，向网络广播一个对指定块投票的请求信息，该消息携带了一个块HASH。
+
+接收到该消息的节点解析块信息后，处理共识投票，==本用例未提供处理参考==
 
 
-新增的区块链网络操作方法的主要功能：
 
-1. **UTXO查询功能**
-   - `requestUTXOs`: 请求特定地址的UTXO数据
-   - `handleUTXOsRequest`: 处理UTXO请求并返回相关数据
+##### CONSENSUS_RESULT
 
-2. **余额查询功能**
-   - `requestBalance`: 请求特定地址的余额
-   - `handleBalanceRequest`: 处理余额请求并返回结果
 
-3. **区块链同步功能**
-   - `requestSync`: 请求从特定高度开始的区块数据
-   - `handleSyncRequest`: 处理同步请求并返回相关区块
 
-4. **挖矿功能**
-   - `requestMining`: 请求创建包含特定交易的新区块
-   - `handleMiningRequest`: 处理挖矿请求并返回新创建的区块
-
-5. **共识机制**
+1. **共识机制**
    - `broadcastConsensusVote`: 广播对特定区块的投票
    - `broadcastConsensusResult`: 广播共识结果
    - `handleConsensusVote`: 处理共识投票
    - `handleConsensusResult`: 处理共识结果
 
-每个方法都包含了：
-- 消息的创建和序列化
-- 数据的处理和验证
-- 响应的构建和发送
+##### 小结
 
-需要注意的是，共识机制的具体实现（`handleConsensusVote`和`handleConsensusResult`）目前只有框架，需要根据您选择的共识算法（如PoW、PoS等）来完善实现。
+​	共识机制的具体实现（`handleConsensusVote`和`handleConsensusResult`）目前只有框架，需要根据您选择的共识算法（如PoW、PoS等）来完善实现。
 
-您是否需要我详细解释某个具体功能的实现，或者需要进一步完善某些部分？
+​	还有UTXOS，BALANCE， SYNC_RESPONSE， MINING_RESPONSE， CONSENSUS_VOTE未提供处理参考。
+
+​	并且SYNC_REQUEST和GET_BLOCKS有什么区别
+
+
+
+
+
+
 
 #### 规避广播风暴
 
@@ -2667,6 +2740,10 @@ void P2PNode::connect(const std::string& host, int port) {
 2. 在共享节点信息时过滤掉使用临时端口的连接
 3. 在连接前进行多重检查
 4. 添加了更详细的日志输出
+
+
+
+
 
 
 
