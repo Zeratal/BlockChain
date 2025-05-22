@@ -33,7 +33,8 @@ Transaction::Transaction(const std::string& from, const std::string& to, double 
 
 Transaction Transaction::createSystemTransaction(const std::string& to, double amount) {
     Transaction tx("SYSTEM", to, amount);
-    tx.signature_ = "SYSTEM_SIGNATURE";  // 系统交易的特殊签名
+    // 系统交易使用特殊的签名机制
+    tx.signature_ = "SYSTEM_SIGNATURE_" + std::to_string(amount) + "_" + to;
     tx.addOutput(TransactionOutput(amount, to));
     return tx;
 }
@@ -51,13 +52,15 @@ void Transaction::addOutput(const TransactionOutput& output) {
 }
 
 bool Transaction::verifySignature() const {
-    if (from_ == "SYSTEM") return true;
+    // 系统交易使用特殊的验证逻辑
+    if (from_ == "SYSTEM") {
+        // 验证系统交易的签名格式
+        std::string expectedSignature = "SYSTEM_SIGNATURE_" + std::to_string(amount_) + "_" + to_;
+        return signature_ == expectedSignature;
+    }
     
-    // 验证签名
-    // std::cout << "Transaction::verifySignature: " << transactionId_ << " signature: " << signature_ << std::endl;
-    Wallet::verify(transactionId_, signature_, from_);
-    // 这里需要实现具体的签名验证逻辑
-    return !signature_.empty();
+    // 普通交易使用标准的签名验证
+    return Wallet::verify(transactionId_, signature_, from_);
 }
 
 std::string Transaction::calculateTransactionId() const {

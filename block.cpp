@@ -16,10 +16,11 @@ Block::Block(int index, const std::vector<Transaction>& transactions, const std:
     , nonce_(0)
 {
     std::cout << "Block::Block create" << index_ << std::endl;
-    auto now = std::chrono::system_clock::now();
-    auto now_c = std::chrono::system_clock::to_time_t(now);
-    timestamp_ = std::ctime(&now_c);
-    timestamp_.pop_back(); // 移除换行符
+    // 使用高精度时间戳
+    auto now = std::chrono::high_resolution_clock::now();
+    auto duration = now.time_since_epoch();
+    auto nanoseconds = std::chrono::duration_cast<std::chrono::nanoseconds>(duration).count();
+    timestamp_ = std::to_string(nanoseconds);
 
     // Create Merkle tree and get root hash
     MerkleTree merkleTree(transactions_);

@@ -1,6 +1,8 @@
 #include "utxo.h"
 #include <algorithm>
+#include "nlohmann/json.hpp"
 
+using json = nlohmann::json;
 UTXO::UTXO(const std::string& txId, int outputIndex, double amount, const std::string& owner)
     : txId_(txId)
     , outputIndex_(outputIndex)
@@ -87,4 +89,14 @@ std::vector<UTXO> UTXOPool::selectUTXOs(const std::string& address, double amoun
     }
     
     return selectedUTXOs;
+}
+
+std::string UTXO::toJson() const {
+    json j;
+    j["txId"] = txId_;
+    j["outputIndex"] = outputIndex_;
+    j["amount"] = amount_;
+    j["owner"] = owner_;
+    j["spent"] = spent_;
+    return j.dump();
 } 

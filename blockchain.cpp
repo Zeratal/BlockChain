@@ -3,6 +3,7 @@
 #include <memory>
 #include <vector>
 #include <map>
+#include <chrono>
 
 // Blockchain 类实现
 Blockchain::Blockchain(int difficulty)
@@ -16,7 +17,23 @@ Blockchain::Blockchain(int difficulty)
 
 std::shared_ptr<Block> Blockchain::createGenesisBlock() {
     std::vector<Transaction> genesisTransactions;
-    return std::make_shared<Block>(0, genesisTransactions, "0");
+
+    // 添加创世交易
+    Transaction genesisTx(
+        "SYSTEM",  // 从系统
+        "GENESIS", // 到创世地址
+        1000000    // 初始金额
+    );
+    genesisTx.setSignature("GENESIS_SIGNATURE");
+    genesisTransactions.push_back(genesisTx);
+    
+    // 使用高精度时间戳作为唯一标识
+    auto now = std::chrono::high_resolution_clock::now();
+    auto duration = now.time_since_epoch();
+    auto nanoseconds = std::chrono::duration_cast<std::chrono::nanoseconds>(duration).count();
+    std::string uniqueId = std::to_string(nanoseconds);
+    
+    return std::make_shared<Block>(0, genesisTransactions, uniqueId);
 }
 
 void Blockchain::addBlock(const std::vector<Transaction>& transactions) {
@@ -113,15 +130,16 @@ bool Blockchain::isChainValid() const {
 // 验证交易（包括余额检查）
 bool Blockchain::validateTransaction(const Transaction& tx) const {
     std::cout << "Blockchain::validateTransaction: " << tx.getTransactionId() << std::endl;
-    // 检查签名
+    
+    // 系统交易只需要验证签名
+    if (tx.getFrom() == "SYSTEM") {
+        return tx.verifySignature();
+    }
+    
+    // 普通交易需要验证签名和余额
     if (!tx.verifySignature()) {
         std::cout << "Transaction signature verification failed" << std::endl;
         return false;
-    }
-    
-    // 系统交易跳过余额检查
-    if (tx.getFrom() == "SYSTEM") {
-        return true;
     }
     
     // 检查余额

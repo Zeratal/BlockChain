@@ -18,6 +18,9 @@ public:
     bool isSpent() const { return spent_; }
     void markAsSpent() { spent_ = true; }
     
+    // 添加toJson方法
+    std::string toJson() const;
+    
 private:
     std::string txId_;
     int outputIndex_;

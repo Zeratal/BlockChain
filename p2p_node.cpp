@@ -55,6 +55,8 @@ void P2PNode::stop() {
     if (io_thread_.joinable()) {
         io_thread_.join();
     }
+
+    queue_cv_.notify_one();
     if (message_thread_.joinable()) {
         message_thread_.join();
     }
@@ -229,6 +231,60 @@ void P2PNode::handleMessage(const Message& message, const std::string& sender) {
             }
             break;
         }
+        
+        case MessageType::GET_UTXOS: {
+            handleUTXOsRequest(message, sender);
+            break;
+        }
+        
+        case MessageType::UTXOS: {
+            json utxosData = json::parse(message.data);
+            // 处理接收到的UTXO数据
+            break;
+        }
+        
+        case MessageType::GET_BALANCE: {
+            handleBalanceRequest(message, sender);
+            break;
+        }
+        
+        case MessageType::BALANCE: {
+            json balanceData = json::parse(message.data);
+            // 处理接收到的余额数据
+            break;
+        }
+        
+        case MessageType::SYNC_REQUEST: {
+            handleSyncRequest(message, sender);
+            break;
+        }
+        
+        case MessageType::SYNC_RESPONSE: {
+            json syncData = json::parse(message.data);
+            // 处理同步响应数据
+            break;
+        }
+        
+        case MessageType::MINING_REQUEST: {
+            handleMiningRequest(message, sender);
+            break;
+        }
+        
+        case MessageType::MINING_RESPONSE: {
+            json miningData = json::parse(message.data);
+            // 处理挖矿响应数据
+            break;
+        }
+        
+        case MessageType::CONSENSUS_VOTE: {
+            handleConsensusVote(message, sender);
+            break;
+        }
+        
+        case MessageType::CONSENSUS_RESULT: {
+            handleConsensusResult(message, sender);
+            break;
+        }
     }
 }
 
@@ -276,4 +332,220 @@ Message P2PNode::deserializeMessage(const std::string& data) {
     message.sender = j["sender"];
     message.signature = j["signature"];
     return message;
+}
+
+void P2PNode::requestUTXOs(const std::string& address) {
+    Message msg;
+    msg.type = MessageType::GET_UTXOS;
+    msg.data = json({{"address", address}}).dump();
+    broadcast(msg);
+}
+
+void P2PNode::requestBalance(const std::string& address) {
+    Message msg;
+    msg.type = MessageType::GET_BALANCE;
+    msg.data = json({{"address", address}}).dump();
+    broadcast(msg);
+}
+
+void P2PNode::requestSync(int startHeight) {
+    Message msg;
+    msg.type = MessageType::SYNC_REQUEST;
+    msg.data = json({{"start_height", startHeight}}).dump();
+    broadcast(msg);
+}
+
+void P2PNode::requestMining(const std::vector<Transaction>& transactions) {
+    Message msg;
+    msg.type = MessageType::MINING_REQUEST;
+    json txArray = json::array();
+    for (const auto& tx : transactions) {
+        txArray.push_back(json::parse(tx.toJson()));
+    }
+    msg.data = txArray.dump();
+    broadcast(msg);
+}
+
+void P2PNode::broadcastConsensusVote(const std::string& blockHash, bool vote) {
+    Message msg;
+    msg.type = MessageType::CONSENSUS_VOTE;
+    msg.data = json({
+        {"block_hash", blockHash},
+        {"vote", vote}
+    }).dump();
+    broadcast(msg);
+}
+
+void P2PNode::broadcastConsensusResult(const std::string& blockHash, bool accepted) {
+    Message msg;
+    msg.type = MessageType::CONSENSUS_RESULT;
+    msg.data = json({
+        {"block_hash", blockHash},
+        {"accepted", accepted}
+    }).dump();
+    broadcast(msg);
+}
+
+void P2PNode::handleUTXOsRequest(const Message& message, const std::string& sender) {
+    json request = json::parse(message.data);
+    std::string address = request["address"];
+    
+    // 获取UTXO数据
+    auto utxos = blockchain_->getUTXOsForAddress(address);
+    
+    // 构建响应
+    Message response;
+    response.type = MessageType::UTXOS;
+    json utxosArray = json::array();
+    for (const auto& utxo : utxos) {
+        utxosArray.push_back(json::parse(utxo.toJson()));
+    }
+    response.data = utxosArray.dump();
+    
+    sendToNode(sender, response);
+}
+
+void P2PNode::handleBalanceRequest(const Message& message, const std::string& sender) {
+    json request = json::parse(message.data);
+    std::string address = request["address"];
+    
+    // 获取余额
+    double balance = blockchain_->getBalance(address);
+    
+    // 构建响应
+    Message response;
+    response.type = MessageType::BALANCE;
+    response.data = json({{"address", address}, {"balance", balance}}).dump();
+    
+    sendToNode(sender, response);
+}
+
+void P2PNode::handleSyncRequest(const Message& message, const std::string& sender) {
+    json request = json::parse(message.data);
+    int startHeight = request["start_height"];
+    
+    // 获取区块数据
+    auto blocks = blockchain_->getBlocksFromHeight(startHeight);
+    
+    // 构建响应
+    Message response;
+    response.type = MessageType::SYNC_RESPONSE;
+    json blocksArray = json::array();
+    for (const auto& block : blocks) {
+        blocksArray.push_back(json::parse(block.toJson()));
+    }
+    response.data = blocksArray.dump();
+    
+    sendToNode(sender, response);
+}
+
+void P2PNode::handleMiningRequest(const Message& message, const std::string& sender) {
+    json request = json::parse(message.data);
+    std::vector<Transaction> transactions;
+    
+    // 解析交易数据
+    for (const auto& txData : request) {
+        transactions.push_back(Transaction(txData));
+    }
+    
+    // 创建新区块
+    blockchain_->addBlock(transactions);
+    
+    // 构建响应
+    Message response;
+    response.type = MessageType::MINING_RESPONSE;
+    response.data = blockchain_->getChain().back()->toJson();
+    
+    sendToNode(sender, response);
+}
+
+void P2PNode::handleConsensusVote(const Message& message, const std::string& sender) {
+    json voteData = json::parse(message.data);
+    std::string blockHash = voteData["block_hash"];
+    bool vote = voteData["vote"];
+    
+    // 处理共识投票
+    // TODO: 实现共识机制
+}
+
+void P2PNode::handleConsensusResult(const Message& message, const std::string& sender) {
+    json resultData = json::parse(message.data);
+    std::string blockHash = resultData["block_hash"];
+    bool accepted = resultData["accepted"];
+    
+    // 处理共识结果
+    // TODO: 实现共识机制
+}
+
+void P2PNode::startIPC() {
+    // 创建命名管道
+    std::string pipe_name = "\\\\.\\pipe\\blockchain_node_" + host_ + "_" + std::to_string(port_);
+    std::cout << "Creating named pipe: " << pipe_name << std::endl;
+    pipe_handle_ = CreateNamedPipeA(
+        pipe_name.c_str(),
+        PIPE_ACCESS_INBOUND,
+        PIPE_TYPE_MESSAGE | PIPE_READMODE_MESSAGE | PIPE_WAIT,
+        1,  // 最大实例数
+        0,  // 输出缓冲区大小
+        0,  // 输入缓冲区大小
+        0,  // 默认超时
+        NULL  // 安全属性
+    );
+    
+    if (pipe_handle_ == INVALID_HANDLE_VALUE) {
+        throw std::runtime_error("Failed to create named pipe");
+    }
+    
+    // 启动IPC线程
+    ipc_thread_ = std::thread(&P2PNode::ipcLoop, this);
+}
+
+void P2PNode::stopIPC() {
+    std::cout << "Stopping IPC" << std::endl;
+    if (pipe_handle_ != INVALID_HANDLE_VALUE) {
+        CloseHandle(pipe_handle_);
+        pipe_handle_ = INVALID_HANDLE_VALUE;
+    }
+    std::cout << "IPC stopped" << std::endl;
+    if (ipc_thread_.joinable()) {
+        std::cout << "Joining IPC thread" << std::endl;
+        ipc_thread_.join();
+        std::cout << "IPC thread joined" << std::endl;
+    }
+    std::cout << "IPC stopped" << std::endl;
+}
+
+void P2PNode::ipcLoop() {
+    std::cout << "Starting IPC loop" << std::endl;
+    while (running_) {
+        // 等待客户端连接
+        if (!ConnectNamedPipe(pipe_handle_, NULL)) {
+            if (GetLastError() != ERROR_PIPE_CONNECTED) {
+                continue;
+            }
+        }
+        
+        // 读取消息
+        char buffer[256];
+        DWORD bytes_read;
+        if (ReadFile(pipe_handle_, buffer, sizeof(buffer) - 1, &bytes_read, NULL)) {
+            buffer[bytes_read] = '\0';
+            std::string message(buffer);
+            std::cout << "Received message: " << message << std::endl;
+            if (message == "EXIT") {
+                std::cout << "Received exit signal" << std::endl;
+                exit_requested_ = true;
+                break;
+            }
+        }
+        
+        // 断开连接
+        DisconnectNamedPipe(pipe_handle_);
+    }
+    std::cout << "IPC loop ended" << std::endl;
 } 
+
+bool P2PNode::isExitRequested() const {
+    std::cout << "Checking exit requested: " << exit_requested_ << std::endl;
+    return exit_requested_;
+}

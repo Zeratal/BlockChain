@@ -17,13 +17,23 @@ using boost::asio::ip::tcp;
 
 // 消息类型枚举
 enum class MessageType {
-    HANDSHAKE,
-    NEW_BLOCK,
-    NEW_TRANSACTION,
-    GET_BLOCKS,
-    BLOCKS,
-    GET_PEERS,
-    PEERS
+    HANDSHAKE,           // 握手消息
+    NEW_BLOCK,          // 新区块
+    NEW_TRANSACTION,    // 新交易
+    GET_BLOCKS,         // 请求区块
+    BLOCKS,             // 区块数据
+    GET_PEERS,          // 请求节点列表
+    PEERS,              // 节点列表
+    GET_UTXOS,          // 请求UTXO数据
+    UTXOS,              // UTXO数据
+    GET_BALANCE,        // 请求余额
+    BALANCE,            // 余额数据
+    SYNC_REQUEST,       // 同步请求
+    SYNC_RESPONSE,      // 同步响应
+    MINING_REQUEST,     // 挖矿请求
+    MINING_RESPONSE,    // 挖矿响应
+    CONSENSUS_VOTE,     // 共识投票
+    CONSENSUS_RESULT    // 共识结果
 };
 
 // 消息结构
@@ -52,6 +62,19 @@ public:
     // 获取所有连接的节点
     std::vector<std::string> getConnectedNodes() const;
 
+    // 新增的区块链网络操作方法
+    void requestUTXOs(const std::string& address);
+    void requestBalance(const std::string& address);
+    void requestSync(int startHeight);
+    void requestMining(const std::vector<Transaction>& transactions);
+    void broadcastConsensusVote(const std::string& blockHash, bool vote);
+    void broadcastConsensusResult(const std::string& blockHash, bool accepted);
+
+    // 添加IPC相关方法
+    void startIPC();
+    void stopIPC();
+    bool isExitRequested() const;
+
 private:
     // 处理新连接
     void handleNewConnection();
@@ -65,6 +88,21 @@ private:
     std::string serializeMessage(const Message& message);
     // 反序列化消息
     Message deserializeMessage(const std::string& data);
+
+    // 新增的消息处理方法
+    void handleUTXOsRequest(const Message& message, const std::string& sender);
+    void handleBalanceRequest(const Message& message, const std::string& sender);
+    void handleSyncRequest(const Message& message, const std::string& sender);
+    void handleMiningRequest(const Message& message, const std::string& sender);
+    void handleConsensusVote(const Message& message, const std::string& sender);
+    void handleConsensusResult(const Message& message, const std::string& sender);
+
+    // IPC相关成员
+    std::atomic<bool> exit_requested_{false};
+    std::thread ipc_thread_;
+    HANDLE pipe_handle_{INVALID_HANDLE_VALUE};
+    
+    void ipcLoop();
 
     std::string host_;
     int port_;

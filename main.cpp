@@ -8,6 +8,9 @@ void runNode(const std::string& host, int port) {
         auto blockchain = std::make_shared<Blockchain>(4);
         P2PNode node(host, port, blockchain);
         
+        node.start();
+        node.startIPC();  // 启动IPC
+        
         std::cout << "Starting node at " << host << ":" << port << std::endl;
         std::cout << "Node is ready for connections" << std::endl;  // 添加这行
 
@@ -20,11 +23,9 @@ void runNode(const std::string& host, int port) {
         std::cout << "  chain - Show blockchain" << std::endl;
         std::cout << "  exit - Stop the node" << std::endl;
         
-        node.start();
-        
-        // 等待用户输入
+        // 修改主循环，检查退出请求
         std::string command;
-        while (true) {
+        while (!node.isExitRequested()) {
             std::cout << "> ";
             std::getline(std::cin, command);
             
@@ -120,6 +121,7 @@ void runNode(const std::string& host, int port) {
             }
         }
         
+        node.stopIPC();  // 停止IPC
         node.stop();
     } catch (const std::exception& e) {
         std::cerr << "Node error: " << e.what() << std::endl;
@@ -162,6 +164,38 @@ bool createNodeProcess(const std::string& host, int port) {
     return true;
 }
 
+bool sendExitSignal(const std::string& host, int port) {
+    std::string pipe_name = "\\\\.\\pipe\\blockchain_node_" + host + "_" + std::to_string(port);
+    std::cout << "Sending exit signal to " << pipe_name << std::endl;
+    HANDLE pipe = CreateFileA(
+        pipe_name.c_str(),
+        GENERIC_WRITE,
+        0,
+        NULL,
+        OPEN_EXISTING,
+        0,
+        NULL
+    );
+    
+    if (pipe == INVALID_HANDLE_VALUE) {
+        std::cerr << "Failed to create pipe" << std::endl;
+        return false;
+    }
+    
+    const char* message = "EXIT";
+    DWORD bytes_written;
+    bool success = WriteFile(
+        pipe,
+        message,
+        strlen(message),
+        &bytes_written,
+        NULL
+    );
+    
+    CloseHandle(pipe);
+    return success;
+}
+
 int main(int argc, char* argv[]) {
     if (argc == 3) {
         // 作为节点进程运行
@@ -178,10 +212,16 @@ int main(int argc, char* argv[]) {
         createNodeProcess("127.0.0.1", 8003);
         
         // 主进程等待用户输入
+        std::cout << "Enter 'exit' to stop all nodes" << std::endl;
         std::string command;
         while (true) {
+            std::cout << "> ";
             std::getline(std::cin, command);
             if (command == "exit") {
+                // 发送退出信号给所有节点
+                sendExitSignal("127.0.0.1", 8001);
+                sendExitSignal("127.0.0.1", 8002);
+                sendExitSignal("127.0.0.1", 8003);
                 break;
             }
         }
