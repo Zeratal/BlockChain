@@ -2246,6 +2246,19 @@ else if (cmd == "mine") {
 
 
 
+##### GET_PEERS
+
+GET_PEERS是一个 查询指定节点连接信息，猜测应该是用于路由扩张。收到此请求后，获取当前节点保存到连接信息，封装为PEERS消息回应给请求方
+
+##### PEERS
+
+GET_PEERS的响应，收到此消息后，遍历所有节点信息，并在本地创建一个连接，但这里有2个问题：
+
+1. PEERS节点列表中可能是本地已经存在的节点
+2. 各节点保存的连接信息里，port号有可能是第三方节点主动发起链接建立时新生成的port号，所以未必可以在该port上接受连接建立请求
+
+
+
 新增的区块链网络操作方法的主要功能：
 
 1. **UTXO查询功能**
@@ -2402,6 +2415,258 @@ void P2PNode::cleanupProcessedMessages() {
 4. 系统资源使用更加合理
 
 您觉得这些修改合适吗？需要我帮您实现这些更改吗？
+
+#### 规避交易重复
+
+您说得对，这确实是一个问题。让我们分析一下当前的代码：
+
+1. 在 `handleMessage` 中处理 `NEW_BLOCK` 消息时：
+```cpp
+case MessageType::NEW_BLOCK: {
+    json blockData = json::parse(message.data);
+    Block newBlock(blockData);
+    blockchain_->addBlock(newBlock.getTransactions());  // 这里添加了一次交易
+    broadcastMessage(message, sender);
+    break;
+}
+```
+
+2. 在 `Blockchain::addBlock` 中：
+```cpp
+void Blockchain::addBlock(const std::vector<Transaction>& transactions) {
+    // 获取待处理交易
+    auto pendingTxs = getPendingTransactions();  // 这里又获取了一次交易
+    // ... 创建新区块 ...
+}
+```
+
+这确实会导致交易被重复添加。让我们修改代码来解决这个问题：
+
+1. 修改 `Blockchain::addBlock` 方法，添加一个参数来控制是否使用待处理交易：
+
+```cpp
+// 在 blockchain.h 中
+class Blockchain {
+public:
+    // 添加新方法
+    void addBlock(const std::vector<Transaction>& transactions, bool usePendingTxs = true);
+    // 保留原有方法以保持兼容性
+    void addBlock(const std::vector<Transaction>& transactions) {
+        addBlock(transactions, true);
+    }
+};
+
+// 在 blockchain.cpp 中
+void Blockchain::addBlock(const std::vector<Transaction>& transactions, bool usePendingTxs) {
+    std::vector<Transaction> blockTransactions;
+    
+    if (usePendingTxs) {
+        // 使用链上的待处理交易
+        blockTransactions = getPendingTransactions();
+    } else {
+        // 使用传入的交易
+        blockTransactions = transactions;
+    }
+    
+    // 创建新区块
+    auto newBlock = std::make_shared<Block>(
+        chain_.size(),
+        blockTransactions,
+        chain_.empty() ? "0" : chain_.back()->getHash()
+    );
+    
+    // 添加区块
+    chain_.push_back(newBlock);
+    
+    // 清理已处理的交易
+    if (usePendingTxs) {
+        clearPendingTransactions();
+    }
+}
+```
+
+2. 修改 `handleMessage` 中的 `NEW_BLOCK` 处理：
+
+```cpp
+case MessageType::NEW_BLOCK: {
+    // 处理新区块
+    std::cout << "  " << host_ << ":" << port_ << " Received new block from: " << sender << std::endl;
+    json blockData = json::parse(message.data);
+    Block newBlock(blockData);
+    // 使用传入的交易，不使用待处理交易
+    blockchain_->addBlock(newBlock.getTransactions(), false);
+    broadcastMessage(message, sender);
+    break;
+}
+```
+
+3. 修改挖矿相关的代码：
+
+```cpp
+// 在 main.cpp 中
+else if (cmd == "mine") {
+    // 获取待处理交易
+    auto pendingTxs = blockchain->getPendingTransactions();
+    if (pendingTxs.empty()) {
+        std::cout << "No pending transactions to mine" << std::endl;
+        continue;
+    }
+    
+    // 创建新区块，使用待处理交易
+    blockchain->addBlock(pendingTxs, true);
+    std::cout << "New block mined" << std::endl;
+    
+    // 广播新区块
+    Message msg;
+    msg.type = MessageType::NEW_BLOCK;
+    msg.data = blockchain->getChain().back()->toJson();
+    node.broadcast(msg);
+}
+```
+
+这样修改后：
+1. 当节点自己挖矿时，使用链上的待处理交易
+2. 当收到其他节点的区块时，使用区块中携带的交易
+3. 避免了交易重复添加的问题
+4. 保持了区块链的一致性
+
+#### 规避连接重复或不可连接的节点
+
+您说得对，这两个问题确实需要解决。让我们修改代码：
+
+1. 首先修改 `PEERS` 消息的处理逻辑，避免重复连接：
+
+```cpp
+case MessageType::PEERS: {
+    // 处理接收到的节点列表
+    std::cout << "  " << host_ << ":" << port_ << " Received peers from: " << sender << std::endl;
+    json peers = json::parse(message.data);
+    
+    // 获取当前已连接的节点列表
+    auto currentNodes = getConnectedNodes();
+    std::set<std::string> currentNodeSet(currentNodes.begin(), currentNodes.end());
+    
+    // 遍历新收到的节点列表
+    for (const auto& peer : peers) {
+        std::string host = peer["host"];
+        int port = peer["port"];
+        std::string nodeId = host + ":" + std::to_string(port);
+        
+        // 检查是否是本地节点
+        if (host == host_ && port == port_) {
+            continue;  // 跳过本地节点
+        }
+        
+        // 检查是否已经连接
+        if (currentNodeSet.find(nodeId) != currentNodeSet.end()) {
+            continue;  // 跳过已连接的节点
+        }
+        
+        // 尝试连接新节点
+        try {
+            connect(host, port);
+        } catch (const std::exception& e) {
+            std::cerr << "Failed to connect to peer " << nodeId << ": " << e.what() << std::endl;
+        }
+    }
+    break;
+}
+```
+
+2. 修改 `GET_PEERS` 的响应，只返回可连接的节点信息：
+
+```cpp
+case MessageType::GET_PEERS: {
+    // 发送已知节点列表
+    std::cout << "  " << host_ << ":" << port_ << " Sending peers to: " << sender << std::endl;
+    Message response;
+    response.type = MessageType::PEERS;
+    
+    // 构建可连接的节点列表
+    json peersArray = json::array();
+    for (const auto& [nodeId, socket] : connections_) {
+        // 解析节点ID
+        size_t colonPos = nodeId.find(':');
+        if (colonPos == std::string::npos) continue;
+        
+        std::string host = nodeId.substr(0, colonPos);
+        int port = std::stoi(nodeId.substr(colonPos + 1));
+        
+        // 检查是否是本地节点
+        if (host == host_ && port == port_) {
+            continue;
+        }
+        
+        // 检查是否是主动连接的节点
+        if (socket->remote_endpoint().port() != port) {
+            continue;  // 跳过使用临时端口的连接
+        }
+        
+        // 添加到可连接节点列表
+        json peerInfo = {
+            {"host", host},
+            {"port", port}
+        };
+        peersArray.push_back(peerInfo);
+    }
+    
+    response.data = peersArray.dump();
+    sendToNode(sender, response);
+    break;
+}
+```
+
+3. 修改 `connect` 方法，添加连接状态检查：
+
+```cpp
+void P2PNode::connect(const std::string& host, int port) {
+    try {
+        // 检查是否已经连接
+        std::string nodeId = host + ":" + std::to_string(port);
+        if (connections_.find(nodeId) != connections_.end()) {
+            std::cout << "Already connected to node: " << nodeId << std::endl;
+            return;
+        }
+        
+        // 检查是否是本地节点
+        if (host == host_ && port == port_) {
+            std::cout << "Cannot connect to self" << std::endl;
+            return;
+        }
+        
+        // 创建socket
+        auto socket = std::make_shared<tcp::socket>(io_context_);
+        
+        // 连接到目标节点
+        socket->connect(tcp::endpoint(boost::asio::ip::make_address(host), port));
+        
+        // 保存连接信息
+        connections_[nodeId] = socket;
+        
+        // 发送握手消息
+        Message handshake;
+        handshake.type = MessageType::HANDSHAKE;
+        handshake.sender = host_ + ":" + std::to_string(port_);
+        sendToNode(nodeId, handshake);
+        
+        std::cout << "Connected to node: " << nodeId << std::endl;
+    } catch (const std::exception& e) {
+        std::cerr << "Failed to connect to node: " << e.what() << std::endl;
+    }
+}
+```
+
+这些修改解决了以下问题：
+1. 避免重复连接已存在的节点
+2. 避免连接本地节点
+3. 只共享可连接的节点信息（使用固定端口的节点）
+4. 添加了更多的错误处理和日志记录
+
+主要改进：
+1. 使用 `set` 来高效检查节点是否已连接
+2. 在共享节点信息时过滤掉使用临时端口的连接
+3. 在连接前进行多重检查
+4. 添加了更详细的日志输出
 
 
 

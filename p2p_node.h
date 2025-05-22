@@ -9,6 +9,7 @@
 #include <queue>
 #include <atomic>
 #include <functional>
+#include <set>
 #include <boost/asio.hpp>
 #include "blockchain.h"
 #include "transaction.h"

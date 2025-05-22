@@ -64,19 +64,34 @@ void P2PNode::stop() {
 
 void P2PNode::connect(const std::string& host, int port) {
     try {
-        // 1. 创建socket
-        auto socket = std::make_shared<tcp::socket>(io_context_);
-        // 2. 连接到目标节点
-        socket->connect(tcp::endpoint(boost::asio::ip::make_address(host), port));
-        // 3. 保存连接信息
+        // 检查是否已经连接
         std::string nodeId = host + ":" + std::to_string(port);
+        if (connections_.find(nodeId) != connections_.end()) {
+            std::cout << "Already connected to node: " << nodeId << std::endl;
+            return;
+        }
+        
+        // 检查是否是本地节点
+        if (host == host_ && port == port_) {
+            std::cout << "Cannot connect to self" << std::endl;
+            return;
+        }
+        
+        // 创建socket
+        auto socket = std::make_shared<tcp::socket>(io_context_);
+        
+        // 连接到目标节点
+        socket->connect(tcp::endpoint(boost::asio::ip::make_address(host), port));
+        
+        // 保存连接信息
         connections_[nodeId] = socket;
-        // 4. 发送握手消息
+        
+        // 发送握手消息
         Message handshake;
         handshake.type = MessageType::HANDSHAKE;
         handshake.sender = host_ + ":" + std::to_string(port_);
         sendToNode(nodeId, handshake);
-        // 5. 打印连接信息 所以这里不是打印连接信息，而是发送握手消息
+        
         std::cout << "Connected to node: " << nodeId << std::endl;
     } catch (const std::exception& e) {
         std::cerr << "Failed to connect to node: " << e.what() << std::endl;
@@ -232,7 +247,36 @@ void P2PNode::handleMessage(const Message& message, const std::string& sender) {
             std::cout << "  " << host_ << ":" << port_ << " Sending peers to: " << sender << std::endl;
             Message response;
             response.type = MessageType::PEERS;
-            response.data = json(getConnectedNodes()).dump();
+            
+            // 构建可连接的节点列表
+            json peersArray = json::array();
+            for (const auto& [nodeId, socket] : connections_) {
+                // 解析节点ID
+                size_t colonPos = nodeId.find(':');
+                if (colonPos == std::string::npos) continue;
+                
+                std::string host = nodeId.substr(0, colonPos);
+                int port = std::stoi(nodeId.substr(colonPos + 1));
+                
+                // 检查是否是本地节点
+                if (host == host_ && port == port_) {
+                    continue;
+                }
+                
+                // 检查是否是主动连接的节点
+                if (socket->remote_endpoint().port() != port) {
+                    continue;  // 跳过使用临时端口的连接
+                }
+                
+                // 添加到可连接节点列表
+                json peerInfo = {
+                    {"host", host},
+                    {"port", port}
+                };
+                peersArray.push_back(peerInfo);
+            }
+            
+            response.data = peersArray.dump();
             sendToNode(sender, response);
             break;
         }
@@ -241,10 +285,33 @@ void P2PNode::handleMessage(const Message& message, const std::string& sender) {
             // 处理接收到的节点列表
             std::cout << "  " << host_ << ":" << port_ << " Received peers from: " << sender << std::endl;
             json peers = json::parse(message.data);
+            
+            // 获取当前已连接的节点列表
+            auto currentNodes = getConnectedNodes();
+            std::set<std::string> currentNodeSet(currentNodes.begin(), currentNodes.end());
+            
+            // 遍历新收到的节点列表
             for (const auto& peer : peers) {
                 std::string host = peer["host"];
                 int port = peer["port"];
-                connect(host, port);
+                std::string nodeId = host + ":" + std::to_string(port);
+                
+                // 检查是否是本地节点
+                if (host == host_ && port == port_) {
+                    continue;  // 跳过本地节点
+                }
+                
+                // 检查是否已经连接
+                if (currentNodeSet.find(nodeId) != currentNodeSet.end()) {
+                    continue;  // 跳过已连接的节点
+                }
+                
+                // 尝试连接新节点
+                try {
+                    connect(host, port);
+                } catch (const std::exception& e) {
+                    std::cerr << "Failed to connect to peer " << nodeId << ": " << e.what() << std::endl;
+                }
             }
             break;
         }
