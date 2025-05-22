@@ -13,7 +13,7 @@ class Blockchain {
 public:
     Blockchain(int difficulty);
     
-    void addBlock(const std::vector<Transaction>& transactions);
+    void addBlock(const std::vector<Transaction>& transactions, bool usePendingTxs);
     bool isChainValid() const;
     const std::vector<std::shared_ptr<Block>>& getChain() const { return chain_; }
     
@@ -44,4 +44,5 @@ private:
     TransactionPool transactionPool_;
     
     std::shared_ptr<Block> createGenesisBlock();
+    void clearPendingTransactions();
 }; 

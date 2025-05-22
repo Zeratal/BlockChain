@@ -36,20 +36,22 @@ std::shared_ptr<Block> Blockchain::createGenesisBlock() {
     return std::make_shared<Block>(0, genesisTransactions, uniqueId);
 }
 
-void Blockchain::addBlock(const std::vector<Transaction>& transactions) {
-    std::cout << "addBlock: " << transactions.size() << std::endl;
-    // 从交易池中获取待处理交易
-    auto pendingTransactions = transactionPool_.getTransactions();
-    // 合并新交易和待处理交易
-    std::vector<Transaction> allTransactions = transactions;
-    std::cout << "  allTransactions: " << allTransactions.size() << " + pendingTransactions: " << pendingTransactions.size() << std::endl;
-    allTransactions.insert(allTransactions.end(), pendingTransactions.begin(), pendingTransactions.end());
-    std::cout << "  allTransactions: " << allTransactions.size() << std::endl;
+void Blockchain::addBlock(const std::vector<Transaction>& transactions, bool usePendingTxs) {
+    std::vector<Transaction> blockTransactions;
+    
+    if (usePendingTxs) {
+        // 使用链上的待处理交易
+        blockTransactions = getPendingTransactions();
+    } else {
+        // 使用传入的交易
+        blockTransactions = transactions;
+    }
+    
     // 创建新区块
     auto newBlock = std::make_shared<Block>(
         chain_.size(),
-        allTransactions,
-        chain_.back()->getHash()
+        blockTransactions,
+        chain_.empty() ? "0" : chain_.back()->getHash()
     );
     
     // 挖矿
@@ -63,11 +65,9 @@ void Blockchain::addBlock(const std::vector<Transaction>& transactions) {
     std::cout << "  updateUTXOPool: " << newBlock->getHash() << std::endl;
     updateUTXOPool(*newBlock);
     
-    // 清空交易池中已确认的交易
-    std::cout << "\n  clearTransactionPool: " << allTransactions.size() << std::endl;
-    for (const auto& tx : allTransactions) {
-        std::cout << "    removeTransaction: " << tx.getTransactionId() << std::endl;
-        transactionPool_.removeTransaction(tx.getTransactionId());
+    // 清理已处理的交易
+    if (usePendingTxs) {
+        clearPendingTransactions();
     }
 }
 
@@ -172,4 +172,9 @@ std::vector<Block> Blockchain::getBlocksFromHeight(int startHeight) const {
         blocks.push_back(block);
     }
     return blocks;
+}
+
+void Blockchain::clearPendingTransactions() {
+    std::cout << "clearPendingTransactions" << std::endl;
+    transactionPool_.clear();
 }

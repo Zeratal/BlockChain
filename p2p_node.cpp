@@ -177,8 +177,7 @@ void P2PNode::handleMessage(const Message& message, const std::string& sender) {
             std::cout << "  " << host_ << ":" << port_ << " Received new block from: " << sender << std::endl;
             json blockData = json::parse(message.data);
             Block newBlock(blockData);
-            blockchain_->addBlock(newBlock.getTransactions());
-            // 广播给其他节点，但排除发送节点
+            blockchain_->addBlock(newBlock.getTransactions(), false);
             broadcastMessage(message, sender);
             break;
         }
@@ -223,7 +222,7 @@ void P2PNode::handleMessage(const Message& message, const std::string& sender) {
             json blocksData = json::parse(message.data);
             for (const auto& blockData : blocksData) {
                 Block block(blockData);
-                blockchain_->addBlock(block.getTransactions());
+                blockchain_->addBlock(block.getTransactions(), false);
             }
             break;
         }
@@ -468,7 +467,7 @@ void P2PNode::handleMiningRequest(const Message& message, const std::string& sen
     }
     
     // 创建新区块
-    blockchain_->addBlock(transactions);
+    blockchain_->addBlock(transactions, true);
     
     // 构建响应
     Message response;

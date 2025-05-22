@@ -2225,6 +2225,25 @@ else if (cmd == "mine") {
 
 ##### NEW_BLOCK
 
+​	 新块消息是由某个节点上用户通过命令mine触发：
+
+- 获取本地链上所有未完成交易，如果没有则失败（==这里获取了一次未完成交易==）
+- 在本地创建新块
+  - 根据所有未完成交易（==这里再次获取了一次未完成交易==），链深度，前一个块HASH值，MerkleTree，计算Hash值
+  - 挖矿（反复重新计算Hash值）
+  - 加入本地链
+  - 更新UTXOPool（本地链）（==由于本例中没有根据UTXO更新交易的输入输出，所以无操作==）
+  - 从本地链移走未完成交易
+- 获取最新块，并广播
+
+​	而收到新块的节点
+
+- Json解析块
+- 根据Json串生成新块
+- 提取新块里的交易（==注意，这些交易已经在原来节点完成了<更新过UTXO，签名包含了这些信息>==）
+- 在根据这些交易，在本地链创建一个块
+- 继续广播这个消息（排除发送方）
+
 
 
 新增的区块链网络操作方法的主要功能：
@@ -2260,11 +2279,137 @@ else if (cmd == "mine") {
 
 您是否需要我详细解释某个具体功能的实现，或者需要进一步完善某些部分？
 
-### 
+#### 规避广播风暴
+
+是的，您说得对。当前的实现确实存在广播风暴的问题。让我们分析一下当前的广播逻辑：
+
+```cpp
+void P2PNode::broadcastMessage(const Message& message) {
+    for (const auto& node : connected_nodes_) {
+        sendMessage(node, message);
+    }
+}
+```
+
+当节点A收到新交易后：
+1. 节点A广播给所有连接的节点（包括节点B）
+2. 节点B收到后，又广播给所有连接的节点（包括节点A）
+3. 这样就形成了无限循环的广播
+
+让我们修改代码来解决这个问题：
+
+```cpp
+// 在 p2p_node.h 中添加
+class P2PNode {
+private:
+    // 添加消息去重集合
+    std::unordered_set<std::string> processed_messages_;
+    std::mutex processed_messages_mutex_;
+    
+    // 添加消息ID生成方法
+    std::string generateMessageId(const Message& message);
+    
+    // 修改广播方法
+    void broadcastMessage(const Message& message, const std::string& exclude_node = "");
+};
+
+// 在 p2p_node.cpp 中实现
+std::string P2PNode::generateMessageId(const Message& message) {
+    // 根据消息内容生成唯一ID
+    return message.type + "_" + message.data;
+}
+
+void P2PNode::broadcastMessage(const Message& message, const std::string& exclude_node) {
+    std::string message_id = generateMessageId(message);
+    
+    // 检查是否已经处理过该消息
+    {
+        std::lock_guard<std::mutex> lock(processed_messages_mutex_);
+        if (processed_messages_.find(message_id) != processed_messages_.end()) {
+            return;  // 已经处理过，不再广播
+        }
+        processed_messages_.insert(message_id);
+    }
+    
+    // 广播给除发送节点外的所有节点
+    for (const auto& node : connected_nodes_) {
+        if (node != exclude_node) {
+            sendMessage(node, message);
+        }
+    }
+}
+
+void P2PNode::handleMessage(const std::string& from, const Message& message) {
+    switch (message.type) {
+        case MessageType::NEW_TRANSACTION: {
+            // 将交易添加到待处理队列
+            Transaction tx;
+            if (tx.fromJson(message.data)) {
+                blockchain_.addTransaction(tx);
+                // 广播给其他节点，但排除发送节点
+                broadcastMessage(message, from);
+            }
+            break;
+        }
+        case MessageType::NEW_BLOCK: {
+            // 处理新区块
+            Block block;
+            if (block.fromJson(message.data)) {
+                if (blockchain_.addBlock(block)) {
+                    // 广播给其他节点，但排除发送节点
+                    broadcastMessage(message, from);
+                }
+            }
+            break;
+        }
+        // ... 其他消息处理 ...
+    }
+}
+
+// 添加消息清理机制，防止内存无限增长
+void P2PNode::cleanupProcessedMessages() {
+    std::lock_guard<std::mutex> lock(processed_messages_mutex_);
+    // 保留最近1000条消息记录
+    if (processed_messages_.size() > 1000) {
+        processed_messages_.clear();
+    }
+}
+```
+
+这些修改的主要改进点：
+
+1. **消息去重**：
+   - 使用`processed_messages_`集合记录已处理的消息
+   - 每个消息生成唯一ID
+   - 避免重复处理相同的消息
+
+2. **定向广播**：
+   - 广播时排除消息的发送节点
+   - 防止消息回传给发送者
+
+3. **内存管理**：
+   - 添加消息清理机制
+   - 防止`processed_messages_`集合无限增长
+
+4. **线程安全**：
+   - 使用互斥锁保护共享资源
+   - 确保多线程环境下的安全
+
+这样修改后：
+1. 每个消息只会被处理一次
+2. 广播不会形成循环
+3. 消息传播更加高效
+4. 系统资源使用更加合理
+
+您觉得这些修改合适吗？需要我帮您实现这些更改吗？
 
 
 
+### 遗留
 
+交易加入块中后，它包含了 那些信息（发送，接受，金额，签名（包括UTXO））
+
+块中余额变化干什么用的
 
 
 

@@ -53,8 +53,8 @@ void runNode(const std::string& host, int port) {
                     continue;
                 }
                 
-                // 创建新区块
-                blockchain->addBlock(pendingTxs);
+                // 创建新区块，使用待处理交易
+                blockchain->addBlock(pendingTxs, true);
                 std::cout << "New block mined" << std::endl;
                 
                 // 广播新区块
