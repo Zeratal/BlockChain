@@ -12,6 +12,7 @@
 #include <boost/asio.hpp>
 #include "blockchain.h"
 #include "transaction.h"
+#include <unordered_set>
 
 using boost::asio::ip::tcp;
 
@@ -116,4 +117,15 @@ private:
     std::atomic<bool> running_;
     std::thread message_thread_;
     std::thread io_thread_;  // 添加 IO 线程
+
+    // 添加消息去重集合
+    std::unordered_set<std::string> processed_messages_;
+    std::mutex processed_messages_mutex_;
+    
+    // 添加消息ID生成方法
+    std::string generateMessageId(const Message& message);
+    
+    // 修改广播方法
+    void cleanupProcessedMessages();
+    void broadcastMessage(const Message& message, const std::string& exclude_node = "");
 }; 

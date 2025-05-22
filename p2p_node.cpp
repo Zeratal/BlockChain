@@ -84,9 +84,27 @@ void P2PNode::connect(const std::string& host, int port) {
 }
 
 void P2PNode::broadcast(const Message& message) {
+    broadcastMessage(message, "");
+}
+
+void P2PNode::broadcastMessage(const Message& message, const std::string& exclude_node) {
+    std::string message_id = generateMessageId(message);
+    
+    // 检查是否已经处理过该消息
+    {
+        std::lock_guard<std::mutex> lock(processed_messages_mutex_);
+        if (processed_messages_.find(message_id) != processed_messages_.end()) {
+            return;  // 已经处理过，不再广播
+        }
+        processed_messages_.insert(message_id);
+    }
+    
+    // 广播给除发送节点外的所有节点
     std::lock_guard<std::mutex> lock(queue_mutex_);
     for (const auto& [nodeId, socket] : connections_) {
-        sendToNode(nodeId, message);
+        if (nodeId != exclude_node) {
+            sendToNode(nodeId, message);
+        }
     }
 }
 
@@ -160,8 +178,8 @@ void P2PNode::handleMessage(const Message& message, const std::string& sender) {
             json blockData = json::parse(message.data);
             Block newBlock(blockData);
             blockchain_->addBlock(newBlock.getTransactions());
-            // 广播给其他节点
-            broadcast(message);
+            // 广播给其他节点，但排除发送节点
+            broadcastMessage(message, sender);
             break;
         }
         
@@ -171,8 +189,8 @@ void P2PNode::handleMessage(const Message& message, const std::string& sender) {
             json txData = json::parse(message.data);
             Transaction newTx(txData);
             if (blockchain_->addTransactionToPool(newTx)) {
-                // 广播给其他节点
-                broadcast(message);
+                // 广播给其他节点，但排除发送节点
+                broadcastMessage(message, sender);
             }
             break;
         }
@@ -304,6 +322,7 @@ void P2PNode::messageLoop() {
         lock.unlock();
         
         handleMessage(message, message.sender);
+        cleanupProcessedMessages();
     }
 }
 
@@ -338,21 +357,21 @@ void P2PNode::requestUTXOs(const std::string& address) {
     Message msg;
     msg.type = MessageType::GET_UTXOS;
     msg.data = json({{"address", address}}).dump();
-    broadcast(msg);
+    broadcastMessage(msg);
 }
 
 void P2PNode::requestBalance(const std::string& address) {
     Message msg;
     msg.type = MessageType::GET_BALANCE;
     msg.data = json({{"address", address}}).dump();
-    broadcast(msg);
+    broadcastMessage(msg);
 }
 
 void P2PNode::requestSync(int startHeight) {
     Message msg;
     msg.type = MessageType::SYNC_REQUEST;
     msg.data = json({{"start_height", startHeight}}).dump();
-    broadcast(msg);
+    broadcastMessage(msg);
 }
 
 void P2PNode::requestMining(const std::vector<Transaction>& transactions) {
@@ -363,7 +382,7 @@ void P2PNode::requestMining(const std::vector<Transaction>& transactions) {
         txArray.push_back(json::parse(tx.toJson()));
     }
     msg.data = txArray.dump();
-    broadcast(msg);
+    broadcastMessage(msg);
 }
 
 void P2PNode::broadcastConsensusVote(const std::string& blockHash, bool vote) {
@@ -373,7 +392,7 @@ void P2PNode::broadcastConsensusVote(const std::string& blockHash, bool vote) {
         {"block_hash", blockHash},
         {"vote", vote}
     }).dump();
-    broadcast(msg);
+    broadcastMessage(msg);
 }
 
 void P2PNode::broadcastConsensusResult(const std::string& blockHash, bool accepted) {
@@ -383,7 +402,7 @@ void P2PNode::broadcastConsensusResult(const std::string& blockHash, bool accept
         {"block_hash", blockHash},
         {"accepted", accepted}
     }).dump();
-    broadcast(msg);
+    broadcastMessage(msg);
 }
 
 void P2PNode::handleUTXOsRequest(const Message& message, const std::string& sender) {
@@ -548,4 +567,17 @@ void P2PNode::ipcLoop() {
 bool P2PNode::isExitRequested() const {
     std::cout << "Checking exit requested: " << exit_requested_ << std::endl;
     return exit_requested_;
+}
+
+std::string P2PNode::generateMessageId(const Message& message) {
+    // 根据消息类型和数据生成唯一ID
+    return std::to_string(static_cast<int>(message.type)) + "_" + message.data;
+}
+
+void P2PNode::cleanupProcessedMessages() {
+    std::lock_guard<std::mutex> lock(processed_messages_mutex_);
+    // 保留最近1000条消息记录
+    if (processed_messages_.size() > 1000) {
+        processed_messages_.clear();
+    }
 }
