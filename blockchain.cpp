@@ -263,8 +263,4 @@ bool Blockchain::verifyBlock(const Block& block) const {
     return true;
 }
 
-bool Blockchain::verifyDifficulty(const Block& block) const {
-    return block.verifyDifficulty(difficulty_);
-}
-
 

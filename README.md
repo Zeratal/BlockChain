@@ -1439,11 +1439,19 @@ make
 - 添加通过json初始化构造块
 - 添加toJson将块转换为Json
 
+### UTXO修改（0525补充）
+
+- 添加通过json初始化构造块
+- 添加toJson将块转换为Json
+
+
+
 ### Blockchain修改
 
 - 增加一个getBlocksFromHeight，从指定节点开始获取链上的块
-
-
+- 获取链的难度
+- 获取链上最后一个块
+- 
 
 #### 校验块
 
@@ -1463,10 +1471,15 @@ make
 
   
 
-### UTXO修改（0525补充）
+#### 更新余额
 
-- 添加通过json初始化构造块
-- 添加toJson将块转换为Json
+#### 更新UTOX
+
+#### 共识机制
+
+
+
+
 
 ### 新增p2p_node
 
