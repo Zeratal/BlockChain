@@ -14,7 +14,8 @@
 #include "blockchain.h"
 #include "transaction.h"
 #include <unordered_set>
-
+#include <nlohmann/json.hpp>
+using json = nlohmann::json;
 using boost::asio::ip::tcp;
 
 // 消息类型枚举
@@ -129,4 +130,25 @@ private:
     // 修改广播方法
     void cleanupProcessedMessages();
     void broadcastMessage(const Message& message, const std::string& exclude_node = "");
+
+    // 添加节点状态相关成员
+    struct NodeState {
+        int height;
+        int difficulty;
+        std::string version;
+        std::string lastBlockHash;
+    };
+    NodeState node_state_;
+    std::mutex node_state_mutex_;
+    
+    std::mutex consensus_mutex_;
+    std::map<std::string, std::pair<int, int>> consensus_votes_;
+
+    // 添加节点状态更新方法
+    void updateNodeState(const json& state);
+
+    // 添加区块查找方法
+    std::shared_ptr<Block> findBlockByHash(const std::string& blockHash) const;
+    std::shared_ptr<Block> findBlockByHeight(int height) const;
+    int getMinConsensusNodes() const;
 }; 

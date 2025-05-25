@@ -4,6 +4,7 @@
 #include <vector>
 #include <map>
 #include <chrono>
+#include <mutex>
 
 // Blockchain 类实现
 Blockchain::Blockchain(int difficulty)
@@ -196,3 +197,74 @@ void Blockchain::clearPendingTransactions() {
     std::cout << "clearPendingTransactions" << std::endl;
     transactionPool_.clear();
 }
+
+void Blockchain::updateUTXO(const UTXO& utxo) {
+    utxos_[utxo.getOwner()].push_back(utxo);
+}
+
+void Blockchain::updateUTXOs(const std::string& address, const std::vector<UTXO>& utxos) {
+    utxos_[address] = utxos;
+}
+
+std::vector<UTXO> Blockchain::getAllUTXOs() const {
+    std::vector<UTXO> allUtxos;
+    for (const auto& [address, utxoList] : utxos_) {
+        allUtxos.insert(allUtxos.end(), utxoList.begin(), utxoList.end());
+    }
+    return allUtxos;
+}
+
+bool Blockchain::verifyBlock(const Block& block) const {
+    // 1. 验证区块索引
+    if (block.getIndex() != chain_.size()) {
+        std::cout << "Invalid block index" << std::endl;
+        return false;
+    }
+    
+    // 2. 验证前一个区块的哈希
+    if (!chain_.empty()) {
+        if (block.getPreviousHash() != chain_.back()->getHash()) {
+            std::cout << "Invalid previous hash" << std::endl;
+            return false;
+        }
+    } else if (block.getPreviousHash() != "0") {
+        std::cout << "Invalid genesis block previous hash" << std::endl;
+        return false;
+    }
+    
+    // 3. 验证区块哈希
+    if (block.getHash() != block.calculateHash()) {
+        std::cout << "Invalid block hash" << std::endl;
+        return false;
+    }
+    
+    // 4. 验证区块难度
+    if (!block.verifyDifficulty(difficulty_)) {
+        std::cout << "Block does not meet difficulty requirement" << std::endl;
+        return false;
+    }
+    
+    // 5. 验证区块中的交易
+    for (const auto& tx : block.getTransactions()) {
+        if (!validateTransaction(tx)) {
+            std::cout << "Invalid transaction in block" << std::endl;
+            return false;
+        }
+    }
+    
+    // 6. 验证Merkle树根
+    std::vector<Transaction> transactions = block.getTransactions();
+    MerkleTree merkleTree(transactions);
+    if (block.getMerkleRoot() != merkleTree.getRootHash()) {
+        std::cout << "Invalid merkle root" << std::endl;
+        return false;
+    }
+    
+    return true;
+}
+
+bool Blockchain::verifyDifficulty(const Block& block) const {
+    return block.verifyDifficulty(difficulty_);
+}
+
+

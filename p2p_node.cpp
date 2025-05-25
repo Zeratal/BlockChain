@@ -323,7 +323,17 @@ void P2PNode::handleMessage(const Message& message, const std::string& sender) {
         
         case MessageType::UTXOS: {
             json utxosData = json::parse(message.data);
-            // 处理接收到的UTXO数据
+            std::string address = utxosData["address"];
+            std::vector<UTXO> utxos;
+            
+            // 解析UTXO数据
+            for (const auto& utxoJson : utxosData["utxos"]) {
+                UTXO utxo(utxoJson);
+                utxos.push_back(utxo);
+            }
+            
+            // 更新本地UTXO集合
+            blockchain_->updateUTXOs(address, utxos);
             break;
         }
         
@@ -334,7 +344,11 @@ void P2PNode::handleMessage(const Message& message, const std::string& sender) {
         
         case MessageType::BALANCE: {
             json balanceData = json::parse(message.data);
-            // 处理接收到的余额数据
+            std::string address = balanceData["address"];
+            double balance = balanceData["balance"];
+            
+            // 更新本地余额缓存
+            blockchain_->updateBalance(address, balance);
             break;
         }
         
@@ -345,7 +359,33 @@ void P2PNode::handleMessage(const Message& message, const std::string& sender) {
         
         case MessageType::SYNC_RESPONSE: {
             json syncData = json::parse(message.data);
-            // 处理同步响应数据
+            
+            // 处理区块数据
+            for (const auto& blockData : syncData["blocks"]) {
+                Block block(blockData);
+                blockchain_->addBlock(block.getTransactions(), false);
+            }
+            
+            // 处理UTXO数据
+            if (syncData.contains("utxos")) {
+                for (const auto& utxoData : syncData["utxos"]) {
+                    UTXO utxo(utxoData);
+                    blockchain_->updateUTXO(utxo);
+                }
+            }
+            
+            // 处理待处理交易
+            if (syncData.contains("pending_transactions")) {
+                for (const auto& txData : syncData["pending_transactions"]) {
+                    Transaction tx(txData);
+                    blockchain_->addTransactionToPool(tx);
+                }
+            }
+            
+            // 更新节点状态
+            if (syncData.contains("node_state")) {
+                updateNodeState(syncData["node_state"]);
+            }
             break;
         }
         
@@ -356,7 +396,21 @@ void P2PNode::handleMessage(const Message& message, const std::string& sender) {
         
         case MessageType::MINING_RESPONSE: {
             json miningData = json::parse(message.data);
-            // 处理挖矿响应数据
+            // std::string blockHash = miningData["block_hash"];  冗余行，但需要确认这个响应是否携带了这个字段
+            bool success = miningData["success"];
+            
+            if (success) {
+                // 验证新区块
+                Block newBlock(miningData["block"]);
+                if (blockchain_->verifyBlock(newBlock)) {
+                    blockchain_->addBlock(newBlock.getTransactions(), false);
+                    // 广播新区块
+                    Message msg;
+                    msg.type = MessageType::NEW_BLOCK;
+                    msg.data = newBlock.toJson();
+                    broadcastMessage(msg);
+                }
+            }
             break;
         }
         
@@ -508,19 +562,48 @@ void P2PNode::handleBalanceRequest(const Message& message, const std::string& se
 void P2PNode::handleSyncRequest(const Message& message, const std::string& sender) {
     json request = json::parse(message.data);
     int startHeight = request["start_height"];
+    bool includeUtxos = request["include_utxos"];
+    bool includePendingTxs = request["include_pending_txs"];
     
-    // 获取区块数据
-    auto blocks = blockchain_->getBlocksFromHeight(startHeight);
-    
-    // 构建响应
+    // 构建同步响应
     Message response;
     response.type = MessageType::SYNC_RESPONSE;
-    json blocksArray = json::array();
-    for (const auto& block : blocks) {
-        blocksArray.push_back(json::parse(block.toJson()));
-    }
-    response.data = blocksArray.dump();
     
+    json syncData = {
+        {"blocks", json::array()},
+        {"utxos", json::array()},
+        {"pending_transactions", json::array()},
+        {"node_state", {
+            {"height", blockchain_->getChain().size()},
+            {"difficulty", blockchain_->getDifficulty()},
+            {"version", "1.0"},
+            {"last_block_hash", blockchain_->getLastBlock()->getHash()}
+        }}
+    };
+    
+    // 添加区块数据
+    auto blocks = blockchain_->getBlocksFromHeight(startHeight);
+    for (const auto& block : blocks) {
+        syncData["blocks"].push_back(json::parse(block.toJson()));
+    }
+    
+    // 如果需要UTXO数据
+    if (includeUtxos) {
+        auto utxos = blockchain_->getAllUTXOs();
+        for (const auto& utxo : utxos) {
+            syncData["utxos"].push_back(json::parse(utxo.toJson()));
+        }
+    }
+    
+    // 如果需要待处理交易
+    if (includePendingTxs) {
+        auto pendingTxs = blockchain_->getPendingTransactions();
+        for (const auto& tx : pendingTxs) {
+            syncData["pending_transactions"].push_back(json::parse(tx.toJson()));
+        }
+    }
+    
+    response.data = syncData.dump();
     sendToNode(sender, response);
 }
 
@@ -549,8 +632,24 @@ void P2PNode::handleConsensusVote(const Message& message, const std::string& sen
     std::string blockHash = voteData["block_hash"];
     bool vote = voteData["vote"];
     
-    // 处理共识投票
-    // TODO: 实现共识机制
+    // 记录投票
+    std::lock_guard<std::mutex> lock(consensus_mutex_);
+    if (consensus_votes_.find(blockHash) == consensus_votes_.end()) {
+        consensus_votes_[blockHash] = std::make_pair(0, 0);  // (赞成票, 反对票)
+    }
+    
+    if (vote) {
+        consensus_votes_[blockHash].first++;
+    } else {
+        consensus_votes_[blockHash].second++;
+    }
+    
+    // 检查是否达到共识
+    int totalVotes = consensus_votes_[blockHash].first + consensus_votes_[blockHash].second;
+    if (totalVotes >= getMinConsensusNodes()) {
+        bool accepted = consensus_votes_[blockHash].first > consensus_votes_[blockHash].second;
+        broadcastConsensusResult(blockHash, accepted);
+    }
 }
 
 void P2PNode::handleConsensusResult(const Message& message, const std::string& sender) {
@@ -558,8 +657,25 @@ void P2PNode::handleConsensusResult(const Message& message, const std::string& s
     std::string blockHash = resultData["block_hash"];
     bool accepted = resultData["accepted"];
     
-    // 处理共识结果
-    // TODO: 实现共识机制
+    if (accepted) {
+        // 查找对应的区块
+        auto block = findBlockByHash(blockHash);
+        if (block) {
+            // 添加到区块链
+            blockchain_->addBlock(block->getTransactions(), false);
+            // 广播新区块
+            Message msg;
+            msg.type = MessageType::NEW_BLOCK;
+            msg.data = block->toJson();
+            broadcastMessage(msg);
+        } else {
+            std::cout << "Block not found: " << blockHash << std::endl;
+        }
+    }
+    
+    // 清理投票记录
+    std::lock_guard<std::mutex> lock(consensus_mutex_);
+    consensus_votes_.erase(blockHash);
 }
 
 void P2PNode::startIPC() {
@@ -646,4 +762,53 @@ void P2PNode::cleanupProcessedMessages() {
     if (processed_messages_.size() > 1000) {
         processed_messages_.clear();
     }
+}
+
+void P2PNode::updateNodeState(const json& state) {
+    std::lock_guard<std::mutex> lock(node_state_mutex_);
+    
+    // 更新节点状态
+    if (state.contains("height")) {
+        node_state_.height = state["height"];
+    }
+    if (state.contains("difficulty")) {
+        node_state_.difficulty = state["difficulty"];
+    }
+    if (state.contains("version")) {
+        node_state_.version = state["version"];
+    }
+    if (state.contains("last_block_hash")) {
+        node_state_.lastBlockHash = state["last_block_hash"];
+    }
+    
+    std::cout << "Node state updated: height=" << node_state_.height 
+              << ", difficulty=" << node_state_.difficulty 
+              << ", version=" << node_state_.version 
+              << ", lastBlockHash=" << node_state_.lastBlockHash << std::endl;
+}
+
+std::shared_ptr<Block> P2PNode::findBlockByHash(const std::string& blockHash) const {
+    // 从区块链中查找区块
+    auto chain = blockchain_->getChain();
+    for (const auto& block : chain) {
+        if (block->getHash() == blockHash) {
+            return block;
+        }
+    }
+    return nullptr;
+}
+
+std::shared_ptr<Block> P2PNode::findBlockByHeight(int height) const {
+    // 从区块链中查找指定高度的区块
+    auto chain = blockchain_->getChain();
+    if (height >= 0 && height < chain.size()) {
+        return chain[height];
+    }
+    return nullptr;
+}
+
+
+int P2PNode::getMinConsensusNodes() const {
+    // 根据节点数量计算最小共识节点数
+    return static_cast<int>(connections_.size() * 0.5) + 1;
 }
