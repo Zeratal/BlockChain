@@ -70,8 +70,8 @@ public:
     void requestBalance(const std::string& address);
     void requestSync(int startHeight);
     void requestMining(const std::vector<Transaction>& transactions);
-    void broadcastConsensusVote(const std::string& blockHash, bool vote);
-    void broadcastConsensusResult(const std::string& blockHash, bool accepted);
+    void broadcastConsensusVote(const Block& block, bool vote);
+    void broadcastConsensusResult(const Block& block, bool accepted);
 
     // 添加IPC相关方法
     void startIPC();
@@ -79,6 +79,9 @@ public:
     bool isExitRequested() const;
 
 private:
+
+    const float CONSENSUS_THRESHOLD = 0.5f;
+
     // 处理新连接
     void handleNewConnection();
     // 处理消息
@@ -99,7 +102,6 @@ private:
     void handleMiningRequest(const Message& message, const std::string& sender);
     void handleConsensusVote(const Message& message, const std::string& sender);
     void handleConsensusResult(const Message& message, const std::string& sender);
-
     // IPC相关成员
     std::atomic<bool> exit_requested_{false};
     std::thread ipc_thread_;
@@ -142,7 +144,9 @@ private:
     std::mutex node_state_mutex_;
     
     std::mutex consensus_mutex_;
-    std::map<std::string, std::pair<int, int>> consensus_votes_;
+    std::map<std::string, std::pair<int, int>> consensus_votes_;  // blockHash -> (赞成票数, 反对票数)
+    std::map<std::string, bool> voted_blocks_;  // blockHash -> 是否已投票
+    std::map<std::string, std::set<std::string>> voted_nodes_;  // blockHash -> 已投票的节点列表
 
     // 添加节点状态更新方法
     void updateNodeState(const json& state);

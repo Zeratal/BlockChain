@@ -192,7 +192,42 @@ void P2PNode::handleMessage(const Message& message, const std::string& sender) {
             std::cout << "  " << host_ << ":" << port_ << " Received new block from: " << sender << std::endl;
             json blockData = json::parse(message.data);
             Block newBlock(blockData);
-            blockchain_->addBlock(newBlock.getTransactions(), false);
+            std::string blockHash = newBlock.getHash();
+            
+            // 检查区块是否已经在链上
+            auto existingBlock = findBlockByHash(blockHash);
+            if (existingBlock) {
+                std::cout << "Block already exists in chain, ignoring new block: " << blockHash << std::endl;
+                break;
+            }
+            
+            // 检查是否已经在投票中
+            {
+                std::lock_guard<std::mutex> lock(consensus_mutex_);
+                if (consensus_votes_.find(blockHash) != consensus_votes_.end()) {
+                    std::cout << "Block is already in consensus voting: " << blockHash << std::endl;
+                    break;
+                }
+            }
+            
+            // 验证区块
+            if (!blockchain_->verifyBlock(newBlock)) {
+                std::cout << "Block verification failed" << std::endl;
+                break;
+            }
+            
+            // 检查区块是否已经在链上
+            existingBlock = findBlockByHash(blockHash);
+            if (existingBlock) {
+                std::cout << "Block already exists in chain" << std::endl;
+                break;
+            }
+            
+            // 发起共识投票
+            std::cout << "Initiating consensus vote for block: " << blockHash << std::endl;
+            broadcastConsensusVote(newBlock, true);  // 发起投票，默认投赞成票
+            
+            // 广播给其他节点
             broadcastMessage(message, sender);
             break;
         }
@@ -505,23 +540,48 @@ void P2PNode::requestMining(const std::vector<Transaction>& transactions) {
     broadcastMessage(msg);
 }
 
-void P2PNode::broadcastConsensusVote(const std::string& blockHash, bool vote) {
+void P2PNode::broadcastConsensusVote(const Block& block, bool vote) {
     Message msg;
     msg.type = MessageType::CONSENSUS_VOTE;
-    msg.data = json({
-        {"block_hash", blockHash},
-        {"vote", vote}
-    }).dump();
-    broadcastMessage(msg);
+      
+    // 构建投票数据
+    json voteData = {
+        {"block_hash", block.getHash()},
+        {"vote", vote},
+        {"block", json::parse(block.toJson())},  // 添加完整的区块数据
+        {"voterId", host_ + ":" + std::to_string(port_)}  // 添加投票者ID
+    };
+    
+    msg.data = voteData.dump();
+    msg.sender = host_ + ":" + std::to_string(port_);  // 设置发送者为当前节点
+    
+    // 首先检查区块是否已经在链上。好像有点冗余
+    auto existingBlock = findBlockByHash(block.getHash());
+    if (existingBlock) {
+        std::cout << "Block already exists in chain, ignoring vote: " << block.getHash() << std::endl;
+        return;
+    }
+    
+    // 先处理自己的投票
+    handleConsensusVote(msg, msg.sender);
+    
+    // 然后广播给其他节点
+    broadcastMessage(msg, msg.sender);
 }
 
-void P2PNode::broadcastConsensusResult(const std::string& blockHash, bool accepted) {
+void P2PNode::broadcastConsensusResult(const Block& block, bool accepted) {
     Message msg;
     msg.type = MessageType::CONSENSUS_RESULT;
-    msg.data = json({
-        {"block_hash", blockHash},
-        {"accepted", accepted}
-    }).dump();
+        
+    // 构建共识结果数据
+    json resultData = {
+        {"block_hash", block.getHash()},
+        {"accepted", accepted},
+        {"block", json::parse(block.toJson())},  // 添加完整的区块数据
+        {"voterId", host_ + ":" + std::to_string(port_)}  // 添加投票者ID
+    };
+    
+    msg.data = resultData.dump();
     broadcastMessage(msg);
 }
 
@@ -630,25 +690,87 @@ void P2PNode::handleMiningRequest(const Message& message, const std::string& sen
 void P2PNode::handleConsensusVote(const Message& message, const std::string& sender) {
     json voteData = json::parse(message.data);
     std::string blockHash = voteData["block_hash"];
+    
+    // 首先检查区块是否已经在链上
+    auto existingBlock = findBlockByHash(blockHash);
+    if (existingBlock) {
+        std::cout << "Block already exists in chain, ignoring vote: " << blockHash << std::endl;
+        return;
+    }
+    
     bool vote = voteData["vote"];
+    const std::string& voterId = voteData["voterId"];
+    const std::string& block = voteData["block"];
+
+    // 验证区块哈希
+    Block newBlock(block);
+    if (newBlock.getHash() != blockHash) {
+        std::cout << "Block hash mismatch in vote message" << std::endl;
+        return;
+    }
+
+    // 记录已投票节点
+    {
+        std::lock_guard<std::mutex> lock(consensus_mutex_);
+        if (voted_nodes_[blockHash].find(voterId) == voted_nodes_[blockHash].end()) {
+            voted_nodes_[blockHash].insert(voterId);
+        } else {
+            std::cout << "Already voted for block: " << blockHash << std::endl;
+            return;
+        }
+    }
+
+    // 检查是否已投票
+    {
+        std::lock_guard<std::mutex> lock(consensus_mutex_);
+        if (voted_blocks_.find(blockHash) != voted_blocks_.end()) {
+            std::cout << "Already voted for block: " << blockHash << std::endl;
+            isVoted = true;
+        } else  {
+            if (!blockchain_->verifyBlock(newBlock)) {
+                std::cout << "Block verification failed for vote: " << blockHash << std::endl;
+                broadcastConsensusResult(newBlock, false);
+            }else{
+                broadcastConsensusResult(newBlock, true);
+                std::cout << "Block verification passed for vote: " << blockHash << std::endl;
+            }
+            voted_blocks_[blockHash] = true; 
+        }
+    }
     
     // 记录投票
-    std::lock_guard<std::mutex> lock(consensus_mutex_);
-    if (consensus_votes_.find(blockHash) == consensus_votes_.end()) {
-        consensus_votes_[blockHash] = std::make_pair(0, 0);  // (赞成票, 反对票)
+    {
+        std::lock_guard<std::mutex> lock(consensus_mutex_);
+        // 初始化投票记录
+        if (consensus_votes_.find(blockHash) == consensus_votes_.end()) {
+            consensus_votes_[blockHash] = std::make_pair(0, 0);
+        } 
+
+        // 记录投票
+        if (vote) {
+            consensus_votes_[blockHash].first++;
+        } else {
+            consensus_votes_[blockHash].second++;
+        }
     }
+
+    // 检查共识
+    auto votes = consensus_votes_[blockHash];
+    int totalVotes = votes.first + votes.second;
     
-    if (vote) {
-        consensus_votes_[blockHash].first++;
-    } else {
-        consensus_votes_[blockHash].second++;
-    }
-    
-    // 检查是否达到共识
-    int totalVotes = consensus_votes_[blockHash].first + consensus_votes_[blockHash].second;
+    // 检查是否达到共识阈值
     if (totalVotes >= getMinConsensusNodes()) {
-        bool accepted = consensus_votes_[blockHash].first > consensus_votes_[blockHash].second;
-        broadcastConsensusResult(blockHash, accepted);
+        float approvalRate = (float)votes.first / totalVotes;
+        if (approvalRate >= CONSENSUS_THRESHOLD) {
+            std::cout << "Consensus reached for block: " << blockHash << std::endl;
+            // blockchain_->addBlock(newBlock.getTransactions(), false);
+            // 发起共识结果
+            broadcastConsensusResult(newBlock, true);
+        } else {
+            // 发起共识结果
+            std::cout << "Consensus not reached for block: " << blockHash << std::endl;
+            broadcastConsensusResult(newBlock, false);
+        }
     }
 }
 
@@ -656,26 +778,37 @@ void P2PNode::handleConsensusResult(const Message& message, const std::string& s
     json resultData = json::parse(message.data);
     std::string blockHash = resultData["block_hash"];
     bool accepted = resultData["accepted"];
+    std::string block = resultData["block"];
+    std::string voterId = resultData["voterId"];
     
     if (accepted) {
-        // 查找对应的区块
-        auto block = findBlockByHash(blockHash);
-        if (block) {
-            // 添加到区块链
-            blockchain_->addBlock(block->getTransactions(), false);
-            // 广播新区块
-            Message msg;
-            msg.type = MessageType::NEW_BLOCK;
-            msg.data = block->toJson();
-            broadcastMessage(msg);
-        } else {
-            std::cout << "Block not found: " << blockHash << std::endl;
-        }
+        // 检查区块是否已经在链上
+        auto existingBlock = findBlockByHash(blockHash);
+        if (existingBlock) {
+            std::cout << "Block already exists in chain: " << blockHash << std::endl;
+        }else if (!resultData.contains("block")) {// 从共识结果中获取区块数据
+            std::cout << "Block data not found in consensus result" << std::endl;
+        }else{
+            // 创建新区块
+            Block newBlock(resultData["block"]);
+        
+            // 验证区块
+            if (!blockchain_->verifyBlock(newBlock)) {
+                std::cout << "Block verification failed: " << blockHash << std::endl;
+            }else{
+                blockchain_->addBlock(newBlock.getTransactions(), false);// 添加到区块链
+                std::cout << "New block added to chain after consensus: " << blockHash << std::endl;
+            }
+        }         
+    } else {
+        std::cout << "Block rejected by consensus: " << blockHash << std::endl;
     }
     
     // 清理投票记录
     std::lock_guard<std::mutex> lock(consensus_mutex_);
     consensus_votes_.erase(blockHash);
+    voted_blocks_.erase(blockHash);
+    voted_nodes_.erase(blockHash);
 }
 
 void P2PNode::startIPC() {
