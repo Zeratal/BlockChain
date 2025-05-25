@@ -104,9 +104,27 @@ void Blockchain::updateUTXOPool(const Block& block) {
     }
 }
 
+void Blockchain::updateBalance(const std::string& address, double balance) {
+    std::lock_guard<std::mutex> lock(balances_mutex_);
+    balances_[address] = balance;
+}
+
 double Blockchain::getBalance(const std::string& address) const {
-    // std::cout << "getBalance: " << address << std::endl;
-    return utxoPool_.getBalance(address);
+    std::lock_guard<std::mutex> lock(balances_mutex_);
+    
+    auto it = balances_.find(address);
+    if (it != balances_.end()) {
+        return it->second;
+    }
+    
+    double balance = 0.0;
+    auto utxos = getUTXOsForAddress(address);
+    for (const auto& utxo : utxos) {
+        balance += utxo.getAmount();
+    }
+    
+    balances_[address] = balance;
+    return balance;
 }
 
 bool Blockchain::isChainValid() const {

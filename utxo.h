@@ -5,11 +5,15 @@
 #include <vector>
 #include <map>
 #include <memory>
+#include <nlohmann/json.hpp>
+
+using json = nlohmann::json;
 
 class UTXO {
 public:
     UTXO() : outputIndex_(0), amount_(0.0), spent_(false) {}
     UTXO(const std::string& txId, int outputIndex, double amount, const std::string& owner);
+    UTXO(const json& data);
     
     const std::string& getTxId() const { return txId_; }
     int getOutputIndex() const { return outputIndex_; }

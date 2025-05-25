@@ -29,7 +29,7 @@ public:
 
     // 将区块转换为 JSON 字符串
     std::string toJson() const;
-
+    bool verifyDifficulty(int difficulty) const;
 private:
 
     std::map<std::string, double> balanceChanges_;  // 记录每个地址的余额变更

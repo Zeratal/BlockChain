@@ -13,6 +13,14 @@ UTXO::UTXO(const std::string& txId, int outputIndex, double amount, const std::s
     std::cout << "      UTXO::UTXO create" << "txId: " << txId_ << ", outputIndex: " << outputIndex_ << ", amount: " << amount_ << ", owner: " << owner_ << ", spent: " << spent_ << std::endl;
 }
 
+UTXO::UTXO(const json& data) {
+    txId_ = data["txId"];
+    outputIndex_ = data["outputIndex"];
+    amount_ = data["amount"];
+    owner_ = data["owner"];
+    spent_ = data["spent"];
+}
+
 UTXOPool::UTXOPool() {
 }
 

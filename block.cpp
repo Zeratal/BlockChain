@@ -123,3 +123,7 @@ std::string Block::toJson() const {
     
     return j.dump();
 }
+
+bool Block::verifyDifficulty(int difficulty) const {
+    return hash_.substr(0, difficulty) == std::string(difficulty, '0');
+}
