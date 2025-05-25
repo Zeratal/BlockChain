@@ -21,8 +21,6 @@ public:
     int getDifficulty() const { return difficulty_; }
     bool validateTransaction(const Transaction& tx) const;
     double getBalance(const std::string& address) const;
-    std::map<std::string, std::pair<int, int>> getConsensusVotes() const { return consensus_votes_; }
-    bool verifyDifficulty(const Block& block) const;
     // 获取从指定高度开始的所有区块
     std::vector<Block> getBlocksFromHeight(int startHeight) const;
     
@@ -63,7 +61,4 @@ private:
     
     mutable std::map<std::string, double> balances_;  // 添加 mutable 关键字
     mutable std::mutex balances_mutex_;               // 互斥锁也需要是 mutable
-
-    std::map<std::string, std::pair<int, int>> consensus_votes_;
-    std::mutex consensus_mutex_;
 }; 
